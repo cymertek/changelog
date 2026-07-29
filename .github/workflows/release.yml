@@ -53,9 +53,14 @@ jobs:
           fi
 
       - name: Export PR label names (comma-separated) for bump detection
-        # Convert GitHub Actions array to comma-separated string using shell IFS.
+        # Handle both tag pushes (no PR labels) and workflow_dispatch inputs.
         run: |
-          LABELS=$(printf '%s,' "${{ github.event.pull_request.labels.*.name }}" | sed 's/,$//')
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            LABELS="${{ inputs.bump_level && format('bump-{0}', inputs.bump_level) || '' }}"
+          else
+            # For tag pushes, PR labels may be undefined — default to empty string.
+            LABELS=""
+          fi
           echo "PR_LABELS=$LABELS" >> "$GITHUB_ENV"
       - name: Determine bump level and next version via Go binary
         id: determine-version
@@ -83,8 +88,9 @@ jobs:
           fi
 
           # Run the bump command — it will derive current version from git tags if VERSION.txt missing.
-          # The CI_MERGE_REQUEST_LABELS env var is set above to trigger automatic bump level detection.
-          ./changelog-linux-amd64 bump || {
+          # Use CI_MERGE_REQUEST_LABELS for automatic detection, fall back to patch level.
+          BUMP_LEVEL="${CI_MERGE_REQUEST_LABELS:-patch}"
+          ./changelog-linux-amd64 bump "$BUMP_LEVEL" || {
             echo "ERROR: bump failed. Check that git tags exist or VERSION.txt is present." >&2
             exit 1
           }
