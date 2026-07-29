@@ -55,13 +55,12 @@ jobs:
       - name: Export PR label names (comma-separated) for bump detection
         # GitHub context provides labels as array; join them with commas for CI_MERGE_REQUEST_LABELS format.
         run: |
-          LABELS='${{ join(github.event.pull_request.labels.*.name, ",") }}'
+          LABELS=${{ join(github.event.pull_request.labels.*.name, ",") }}
           echo "PR_LABELS=$LABELS" >> "$GITHUB_ENV"
-
       - name: Determine bump level and next version via Go binary
         id: determine-version
         env:
-          CI_MERGE_REQUEST_LABELS: "${{ github.event.inputs.bump_level && format('bump-{0}', github.event.inputs.bump_level) || '' }}"
+          CI_MERGE_REQUEST_LABELS: ${{ github.event.inputs.bump_level && format('bump-{0}', github.event.inputs.bump_level) || '' }}
         run: |
           # NOTE: The `changelog bump` command now handles deriving VERSION.txt from git tags
           # when the file doesn't exist (via latestGitTag() in main.go). This is the single source
