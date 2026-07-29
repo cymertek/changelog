@@ -75,7 +75,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
             -w /src \
-            -e "BUMP_LEVEL=$BUMP_LEVEL" \  # Pass BUMP_LEVEL into container
+            -e "BUMP_LEVEL=$BUMP_LEVEL" \
             golang:alpine \
             sh -c 'umask 002 && apk add --no-cache git ca-certificates && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64'
 
