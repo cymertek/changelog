@@ -87,8 +87,8 @@ jobs:
           fi
 
           # Run the bump command — it will derive current version from git tags if VERSION.txt missing.
-          echo ./changelog-linux-amd64 bump "$BUMP_LEVEL"
-          ./changelog-linux-amd64 bump "$BUMP_LEVEL" || {
+          echo ./changelog-linux-amd64 bump --level "$BUMP_LEVEL"
+          ./changelog-linux-amd64 bump --level "$BUMP_LEVEL" || {
             echo "ERROR: bump failed. Check that git tags exist or VERSION.txt is present." >&2
             exit 1
           }
