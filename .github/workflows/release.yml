@@ -52,16 +52,23 @@ jobs:
             echo "No VERSION.txt found — will derive from git tags via `changelog bump`"
           fi
 
+      - name: Export PR label names (comma-separated) for bump detection
+        # GitHub context provides labels as array; join them with commas for CI_MERGE_REQUEST_LABELS format.
+        run: |
+          LABELS='${{ join(github.event.pull_request.labels.*.name, ",") }}'
+          echo "PR_LABELS=$LABELS" >> "$GITHUB_ENV"
+
       - name: Determine bump level and next version via Go binary
         id: determine-version
+        env:
+          CI_MERGE_REQUEST_LABELS: "${{ github.event.inputs.bump_level && format('bump-{0}', github.event.inputs.bump_level) || '' }}"
         run: |
-          BUMP_LEVEL="${{ inputs.bump_level || 'patch' }}"
-
           # NOTE: The `changelog bump` command now handles deriving VERSION.txt from git tags
           # when the file doesn't exist (via latestGitTag() in main.go). This is the single source
           # of truth for version derivation — no shell-based fallback needed.
 
-          echo "Bump level: ${BUMP_LEVEL}"
+          echo "CI_MERGE_REQUEST_LABELS: ${CI_MERGE_REQUEST_LABELS:-none}"
+          echo "PR Labels: ${PR_LABELS:-none}"
 
           # Build test binary to use for bumping (use sh, not bash — Alpine doesn't include it)
           docker run --rm \
@@ -76,8 +83,9 @@ jobs:
             exit 1
           fi
 
-          # Run the bump command — it will derive current version from git tags if VERSION.txt missing
-          ./changelog-linux-amd64 bump --level "$BUMP_LEVEL" || {
+          # Run the bump command — it will derive current version from git tags if VERSION.txt missing.
+          # The CI_MERGE_REQUEST_LABELS env var is set above to trigger automatic bump level detection.
+          ./changelog-linux-amd64 bump || {
             echo "ERROR: bump failed. Check that git tags exist or VERSION.txt is present." >&2
             exit 1
           }
