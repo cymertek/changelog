@@ -75,7 +75,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
             -w /src \
-            -e "BUMP_LEVEL=$BUMP_LEVEL" \
+            -e "BUMP_LABEL=$BUMP_LEVEL"
             golang:alpine \
             sh -c 'umask 002 && apk add --no-cache git ca-certificates && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64'
 
@@ -86,6 +86,7 @@ jobs:
           fi
 
           # Run the bump command — it will derive current version from git tags if VERSION.txt missing.
+          echo ./changelog-linux-amd64 bump "$BUMP_LEVEL"
           ./changelog-linux-amd64 bump "$BUMP_LEVEL" || {
             echo "ERROR: bump failed. Check that git tags exist or VERSION.txt is present." >&2
             exit 1
