@@ -24,13 +24,16 @@ on:
 
 env:
   GO_VERSION: "1.25"
-  REGISTRY_IMAGE: golang:alpine-3.21
+  REGISTRY_IMAGE: golang:alpine
   BINARY_NAME: changelog
 
 jobs:
   version-bump:
     name: Version bump (first pass)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     outputs:
       next_version: ${{ steps.determine-version.outputs.next_version }}
     steps:
@@ -64,7 +67,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
             -w /src \
-            ${{ env.REGISTRY_IMAGE }} \
+            golang:alpine \
             bash -c 'apk add --no-cache git ca-certificates && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o changelog-linux-amd64 .'
 
           chmod +x changelog-linux-amd64
