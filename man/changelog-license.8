@@ -1,0 +1,65 @@
+.TH CHANGELOG-LICENSE 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog license \- print the CYMERTEK Source-Available License embedded in the binary
+.SH SYNOPSIS
+.B changelog license
+[\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBlicense\fR command displays the full text of the CYMERTEK Source-Available License (CSAL) that governs use and distribution of this software. The license is embedded directly in the binary during build time using Go's \fI//go:embed\fR directive, ensuring users always see the correct version without requiring external file access.
+
+This command is useful for verifying licensing terms before commercial use, including educational institutions and training environments that may require separate licenses.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+\fB-V\fR, \fB\-\-verbose\fR
+Print the complete license text including all sections and legal disclaimers. Without this flag, only a summary may be displayed (depending on terminal capabilities).
+.SH LICENSE SUMMARY
+.PP
+The CYMERTEK Source-Available License (CSAL) v1.0 grants:
+
+.RS 4
+.IP \(bu 2
+\fIEvaluation Use:\fR Free for personal evaluation, testing, and learning in non-fee-based environments
+.IP \(bu 2
+\fICommercial Restrictions:\fR Requires separate Commercial License from CYMERTEK for business use, SaaS offerings, paid courses, or any environment collecting fees
+.IP \(bu 2
+\fIForking:\fR Permitted with proper attribution and unofficial labeling requirements
+.RE
+
+.TP
+.B Key Sections Covered:
+.RS 4
+.IP \(bu 2
+License Grant and evaluation-only restrictions
+.IP \(bu 2
+Commercial Use definitions and licensing requirements
+.IP \(bu 2
+Contribution terms and assignment of rights
+.IP \(bu 2
+Fork and derivative work obligations
+.IP \(bu 2
+Trademark and nominative use disclaimers
+.IP \(bu 2
+Warranty disclaimer and limitation of liability
+.RE
+
+.SH CONTACT INFORMATION
+.PP
+For commercial licensing inquiries or to obtain a paid license:
+
+.RS 4
+.IP \(bu 2
+\fIEmail:\fR licensing@cymertek.com
+.IP \(bu 2
+\fIWebsite:\fR https://github.com/cymertek/changelog
+.RE
+
+.SH SEE ALSO
+.TP
+\fBchangelog(8)\fR \- Main changelog command overview
+.TP
+\fBCSALE.md\fR \- Full license documentation in repository root (when available)

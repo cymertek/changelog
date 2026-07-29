@@ -1,0 +1,211 @@
+.TH CHANGELOG-FRAGMENT 5 "July 2026" "changelog 1.0.0" "File Formats"
+.SH NAME
+changelog fragment \- YAML fragment file format for changelog entries
+.SH DESCRIPTION
+.PP
+Fragment files are the primary unit of changelog content in this tool. Each fragment describes a single change (bugfix, enhancement, deprecation, etc.) with metadata including issue reference, category, date, and human-readable title.
+
+Fragments accumulate over time as developers add them via \fBchangelog add\fR, then get aggregated into release notes by \fBchangelog release\fR or \fBchangelog generate\fR.
+.SH FILE LOCATION
+.PP
+By default, fragments are stored in:
+.IP \(bu 2
+\fIchangelogs/fragments/\fR \- Main fragment directory
+
+.TP
+.B Directory Structure:
+.nf
+    changelogs/
+        config.yaml          # Project configuration
+        fragments/           # Fragment files directory
+            PG-001-bugfixes.yml
+            IMP-456-enhancement.yml
+            DOC-123-deprecation.yml
+.fi
+
+.TP
+.B Alternative Locations:
+.RS 4
+.IP \(bu 2
+\fINotes directories\fR specified via \fB\-\-notes-dir\fR in release/generate commands
+.IP \(bu 2
+\fICustom fragment paths\fR configured in changelog.yaml under notes_dirs setting
+.RE
+
+.SH FILE NAMING CONVENTION
+.PP
+Fragment filenames follow this pattern:
+.nf
+    <ISSUE-ID>-<CATEGORY>.yml
+.fi
+
+.TP
+.B Components:
+.RS 4
+.IP \(bu 2
+\fI<ISSUE\-ID>\fR \- Unique identifier (e.g., "PG\-001", "BUG\-12345", "DOC\-789")
+.IP \(bu 2
+\fI<CATEGORY>\fR \- Change category matching one of the supported types (see below)
+.IP \(bu 2
+\fI.yml\fR extension \- YAML format for proper parsing and tooling support
+.RE
+
+.TP
+.B Category Values:
+.RS 4
+.IP \(bu 2
+\fIbugfixes\fR, \fImajor_changes\fR, \fiminor_changes\fR, \fIbreaking_changes\fR
+.IP \(bu 2
+\fIdeprecated_features\fR, \fIremoved_features\fR, \fIsecurity_fixes\fR, \fIknown_issues\fR
+.RE
+
+.SH YAML STRUCTURE
+.PP
+Each fragment file contains a single YAML mapping with category as the top-level key:
+
+.nf
+    <category>:
+      - text: |
+          Fragment body content here...
+        title: "Optional human-readable title"
+        date: "YYYY-MM-DD"  # Optional, defaults to today
+.fi
+
+.TP
+.B Example Fragment (PG\-001-bugfixes.yml):
+.nf
+    bugfixes:
+      - text: |
+          Fixed crash when processing large files.
+          The application would hang indefinitely on inputs over 1GB.
+        title: "Stability improvement for large file handling"
+        date: "2026-07-15"
+.fi
+
+.TP
+.B Example Fragment with Multiple Entries (IMP\-456-enhancement.yml):
+.nf
+    minor_changes:
+      - text: |
+          Added support for parallel processing of multiple files.
+          Performance improved by 10x on multi-core systems.
+        title: "Parallel file processing capability"
+
+      - text: |
+          New configuration option --max-threads controls concurrency level.
+        title: "Thread count configuration"
+.fi
+
+.SH REQUIRED FIELDS
+.PP
+While the tool accepts fragments with minimal structure, the following fields are recommended for optimal processing:
+
+.TP
+.B Required (for release generation):
+.RS 4
+.IP \(bu 2
+\fItext\fR \- Fragment body content (markdown format)
+.IP \(bu 2
+\fItitle\fR \- Human-readable summary of the change
+.RE
+
+.TP
+.B Optional but Recommended:
+.RS 4
+.IP \(bu 2
+\fIdate\fR \- Date in YYYY-MM-DD format for chronological sorting
+.IP \(bu 2
+\fImeta\fR \- Additional metadata (author, issue_type, etc.)
+.RE
+
+.SH OPTIONAL FIELDS
+.PP
+Fragments can include additional metadata fields that influence processing and display:
+
+.TP
+.B Metadata Fields:
+.RS 4
+.IP \(bu 2
+\fIauthor\fR \- Person who created the fragment (email or name)
+.IP \(bu 2
+\fIissue_type\fR \- Classification of change (bug, feature, docs, etc.)
+.IP \(bu 2
+\fItags\fR \- Array of classification tags for filtering and grouping
+.IP \(bu 2
+\fIscope\fR \- Component or module affected by the change
+.RE
+
+.TP
+.B Example with Metadata:
+.nf
+    bugfixes:
+      - text: "Fixed null pointer exception in parser"
+        title: "Parser stability fix"
+        date: "2026-07-20"
+        meta:
+          author: "developer@example.com"
+          issue_type: "bug"
+          scope: "core/parser"
+.fi
+
+.SH SPECIAL CHARACTERS AND QUOTING
+.PP
+Fragment content supports standard YAML quoting rules. Use double quotes for strings containing special characters:
+
+.RS 4
+.IP \(bu 2
+\fIColons in text:\fR Quote with double quotes to avoid parsing as dict keys
+.IP \(bu 2
+\fINewlines:\fR Use block scalars (|) or folded scalars (>) for multi-line content
+.IP \(bu 2
+\fISpecial characters:\fR Escape with backslash or use quoted strings
+.RE
+
+.TP
+.B Correct Quoting Examples:
+.nf
+    # Bad - colon causes YAML parsing as dict
+    text: "Fixed issue: crash on large files"
+
+    # Good - properly quoted string
+    text: 'Fixed issue: crash on large files'
+
+    # Good - block scalar for multi-line content
+    text: |
+      Fixed crash when processing large files.
+      The application would hang indefinitely on inputs over 1GB.
+.fi
+
+.SH VALIDATION RULES
+.PP
+Fragments are validated during \fBchangelog lint\fR and release generation:
+
+.RS 4
+.IP \(bu 2
+YAML syntax must be valid (parseable by standard YAML libraries)
+.IP \(bu 2
+Category key must match one of the supported values
+.IP \(bu 2
+Issue ID in filename should be unique within the fragments directory
+.IP \(bu 2
+Text content should not be empty or whitespace-only
+.RE
+
+.TP
+.B Strict Validation (\fBchangelog lint --strict\fR):
+.RS 4
+.IP \(bu 2
+Date field required and must be in YYYY-MM-DD format
+.IP \(bu 2
+Link syntax validated for proper URL formatting
+.IP \(bu 2
+No colon-in-string issues that break YAML parsing
+.RE
+
+.SH SEE ALSO
+.TP
+\fBchangelog(8)\fR \- Main changelog command with fragment workflow overview
+.TP
+\fBchangelog-add(8)\fR \- Create new fragment files (documents fragment creation process)
+.TP
+\fBchangelog-lint(8)\fR \- Validate fragments for correctness and consistency

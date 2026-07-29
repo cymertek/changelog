@@ -1,0 +1,242 @@
+# CI/CD pipeline for changelog.
+# Two-pass build strategy:
+#   Pass 1 (version-bump): Build a test binary in golang:alpine, use it to bump VERSION.txt via `changelog bump`,
+#           then update main.go's Version variable with sed to match the new version.
+#   Pass 2 (build-all-architectures): Rebuild all architectures using the updated VERSION.txt and main.go,
+#           producing final binaries ready for release.
+
+name: build-and-release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # manual trigger for ad-hoc builds
+    inputs:
+      bump_level:
+        description: 'Version bump level (major/minor/patch)'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+env:
+  GO_VERSION: "1.25"
+  REGISTRY_IMAGE: golang:alpine-3.21
+  BINARY_NAME: changelog
+
+jobs:
+  version-bump:
+    name: Version bump (first pass)
+    runs-on: ubuntu-latest
+    outputs:
+      next_version: ${{ steps.determine-version.outputs.next_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read current version from VERSION.txt (or derive from git tags)
+        id: read-version
+        run: |
+          # NOTE: If VERSION.txt doesn't exist, the Go binary's `changelog bump` command
+          # will derive the latest version from git tags via its built-in latestGitTag() function.
+          # This is the correct behavior for first-time releases where no prior versions exist yet.
+          if [ -f VERSION.txt ]; then
+            echo "Using existing VERSION.txt: $(cat VERSION.txt | tr -d '[:space:]')"
+          else
+            echo "No VERSION.txt found — will derive from git tags via `changelog bump`"
+          fi
+
+      - name: Determine bump level and next version via Go binary
+        id: determine-version
+        run: |
+          BUMP_LEVEL="${{ inputs.bump_level || 'patch' }}"
+
+          # NOTE: The `changelog bump` command now handles deriving VERSION.txt from git tags
+          # when the file doesn't exist (via latestGitTag() in main.go). This is the single source
+          # of truth for version derivation — no shell-based fallback needed.
+
+          echo "Bump level: ${BUMP_LEVEL}"
+
+          # Build test binary to use for bumping
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            ${{ env.REGISTRY_IMAGE }} \
+            bash -c 'apk add --no-cache git ca-certificates && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o changelog-linux-amd64 .'
+
+          chmod +x changelog-linux-amd64
+
+          # Run the bump command — it will derive current version from git tags if VERSION.txt missing
+          ./changelog-linux-amd64 bump --level "$BUMP_LEVEL" || {
+            echo "ERROR: bump failed. Check that git tags exist or VERSION.txt is present." >&2
+            exit 1
+          }
+
+          # Read the new version back from VERSION.txt (now populated by `bump`)
+          NEXT_VERSION=$(cat VERSION.txt | tr -d '[:space:]')
+          echo "Next version: ${NEXT_VERSION}"
+          echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Update main.go Version variable with sed (first pass)
+        # After `changelog bump` populated VERSION.txt, use sed to update the hardcoded version in main.go
+        # so that future builds pick up the correct version without ldflags.
+        run: |
+          NEW_VERSION="${{ steps.determine-version.outputs.next_version }}"
+          echo "Updating main.go Version variable to: ${NEW_VERSION}"
+
+          BARE_VERSION="${NEW_VERSION#v}"
+
+          if [ -f main.go ]; then
+            CURRENT_MAIN_GO_VERSION=$(grep '^var Version' main.go | sed 's/.*"\(.*\)".*/\1/' || echo "")
+
+            if [ -n "$CURRENT_MAIN_GO_VERSION" ]; then
+              sed -i "s|var Version = \".*\"|var Version = \"${BARE_VERSION}\"|" main.go
+              echo "Updated main.go from ${CURRENT_MAIN_GO_VERSION} to ${BARE_VERSION}"
+              grep "^var Version" main.go || true
+            else
+              echo "Could not find 'var Version' in main.go; skipping update"
+            fi
+          else
+            echo "main.go not found; skipping version update"
+          fi
+
+      - name: Commit updated files (VERSION.txt, main.go)
+        # Create a commit with the new version so it's tracked in git history.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add VERSION.txt main.go
+
+          if ! git diff --cached --quiet; then
+            COMMIT_MSG="chore(release): bump to ${{ steps.determine-version.outputs.next_version }}"
+            git commit -m "$COMMIT_MSG"
+            echo "Committed version update: ${COMMIT_MSG}"
+
+            # Push back to update the tag reference (if needed)
+            git push origin HEAD:main --force-with-lease || {
+              echo "Push failed; creating new commit instead"
+              git revert HEAD --no-edit 2>/dev/null || true
+            }
+          else
+            echo "No changes to commit (VERSION.txt and main.go already up-to-date)"
+          fi
+
+      - name: Upload bump artifacts for second pass
+        # NOTE: We upload all Go source files so the second-pass build has everything it needs.
+        # This includes any files modified by `changelog bump` (main.go, VERSION.txt) plus unchanged sources.
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-bump-artifacts
+          path: |
+            *.go
+            go.mod
+            go.sum
+            internal/
+            docgen/
+            tools/
+            changelogs/
+            !dialog.go  # exclude dead code if still present for any reason
+          retention-days: 1
+
+  build-all-architectures:
+    name: Build all architectures (second pass)
+    needs: version-bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download bumped files from first pass
+        uses: actions/download-artifact@v4
+        with:
+          name: version-bump-artifacts
+
+      - name: Build all architectures inside golang:alpine container (second pass)
+        # Now that VERSION.txt and main.go have been updated, build the final binaries.
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            ${{ env.REGISTRY_IMAGE }} \
+            bash -c '
+              apk add --no-cache git ca-certificates &&
+              CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -o changelog-linux-amd64   ./... &&
+              CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -o changelog-linux-arm64   ./... &&
+              CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -o changelog-darwin-amd64  ./... &&
+              CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -o changelog-darwin-arm64  ./... &&
+              CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -o changelog-windows-amd64.exe ./...'
+
+      - name: Generate SHA256 checksums
+        run: |
+          sha256sum changelog-* > checksums.txt
+          cat checksums.txt
+
+      - name: Upload build artifacts to workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog-${{ needs.version-bump.outputs.next_version }}
+          path: |
+            changelog-linux-amd64
+            changelog-linux-arm64
+            changelog-darwin-amd64
+            changelog-darwin-arm64
+            changelog-windows-amd64.exe
+            checksums.txt
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: build-all-architectures
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create releases and upload assets
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: changelog-${{ needs.version-bump.outputs.next_version }}
+
+      - name: Read version for notes (same source of truth)
+        id: read-version
+        run: |
+          echo "version=$(cat VERSION.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release (draft)
+        id: gh_release
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          body=$(cat <<EOF
+          ## changelog ${{ steps.read-version.outputs.version }}
+
+          [Full changelog](CHANGELOG.md)
+
+          ### Binaries
+
+          | Platform | Architecture | File |
+          |---|---|---|
+          | Linux | amd64 | \`changelog-linux-amd64\` |
+          | Linux | arm64 | \`changelog-linux-arm64\` |
+          | macOS | amd64 (Intel) | \`changelog-darwin-amd64\` |
+          | macOS | arm64 (Apple Silicon) | \`changelog-darwin-arm64\` |
+          | Windows | amd64 | \`changelog-windows-amd64.exe\` |
+
+          SHA256 checksums are in \`checksums.txt\`.
+          EOF
+          )
+          # --draft lets the author review before publishing. Remove "--draft" to publish immediately.
+          gh release create "$tag" \
+            --title "changelog ${{ steps.read-version.outputs.version }}" \
+            --notes "${body}" \
+            --draft \
+            changelog-linux-amd64 \
+            changelog-linux-arm64 \
+            changelog-darwin-amd64 \
+            changelog-darwin-arm64 \
+            changelog-windows-amd64.exe \
+            checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

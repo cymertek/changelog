@@ -1,0 +1,128 @@
+.TH CHANGELOG-COLLECTION-NEW 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog collection\-new \- initialize changelog directory for Ansible collections
+.SH SYNOPSIS
+.B changelog collection-new
+[\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBcollection\-new\fR command initializes a new Ansible collection's changelog directory structure with appropriate defaults and configuration. It sets up the standard layout expected for Ansible collections, including plugin documentation generation capabilities.
+
+This command is specifically designed for Ansible collection projects that need to track changes across multiple plugins and modules within the collection namespace.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+\fB\-\-ansible\-doc\-bin\fR=\fIPATH\fR
+Path to ansible-doc binary for plugin documentation generation. Overrides autodetection of the ansible-doc command in system PATH.
+
+.TP
+\fB\-\-use\-ansible\-doc\fR
+Always use ansible-doc tool to find and document plugins, even if plugins directory exists. Forces regeneration of plugin metadata from source files.
+
+.TP
+\fB\-\-collection\-namespace\fR=\fINAMESPACE\fR
+Override the collection namespace (e.g., "myorg.myplugin"). Used for generating fully qualified plugin names in documentation.
+
+.TP
+\fB\-\-collection\-name\fR=\fINAME\fR
+Override the collection name portion of the namespace. Combined with \fB\-\-collection\-namespace\fR for complete identification.
+
+.TP
+\fB\-\-reload\-plugins\fR
+Force reload of plugin cache during initialization. Useful when plugins have been added/removed since last generation.
+
+.TP
+\fB\-\-refresh\fR
+Update existing entries from fragments and refresh plugin descriptions during initialization.
+
+.TP
+\fB\-\-refresh\-plugins\fR=\fIMODE\fR
+Specify how to handle plugin description updates: "allow-removal" or "prevent-removal".
+
+.TP
+\fB\-\-refresh\-fragments\fR=\fIMODE\fR
+Control which fragments to include during refresh: "without-archives" (default) or "with-archives".
+
+.TP
+\fB\-d\fR, \fB\-\-dir\fR=\fIPATH\fR
+Changelog base directory. Defaults to current directory's \fIchangelogs/\fR subdirectory.
+.SH DIRECTORY STRUCTURE CREATED
+.PP
+The command creates the standard Ansible collection changelog layout:
+.RS 4
+.IP \(bu 2
+\fIchangelogs/config.yaml\fR \- Collection-specific configuration with plugin documentation settings
+.IP \(bu 2
+\fIchangelogs/fragments/\fR \- Directory for fragment files describing individual changes
+.IP \(bu 2
+\fIplugins/\fR \- Plugin source directory (if not already present)
+.RE
+
+.TP
+.B Configuration Defaults:
+.RS 4
+.IP \(bu 2
+\fBis_collection: true\fR \- Marks this as a collection project
+.IP \(bu 2
+\fBusFQCN: true\fR \- Use fully qualified collection names in output
+.IP \(bu 2
+\fBadd_plugin_period: true\fR \- Add period after plugin names in documentation
+.RE
+.SH PLUGIN DOCUMENTATION
+.PP
+When \fB\-\-use\-ansible\-doc\fR is specified, the command integrates with ansible-doc to:
+.RS 4
+.IP \(bu 2
+Scan plugins directory for all available plugins and modules
+.IP \(bu 2
+Extract documentation strings and parameter descriptions
+.IP \(bu 2
+Generate plugin reference sections in changelog output
+.IP \(bu 2
+Maintain metadata about plugin availability and changes
+.RE
+
+.TP
+.B Use Cases:
+.RS 4
+.IP \(bu 2
+Initializing a new Ansible collection with changelog support
+.IP \(bu 2
+Adding plugin documentation to existing collections
+.IP \(bu 2
+Regenerating plugin metadata after structural changes
+.IP \(bu 2
+Setting up CI/CD pipelines for collection releases
+.RE
+.SH EXAMPLES
+.TP
+Initialize a new collection:
+.nf
+    changelog collection-new --collection-namespace myorg.myplugin -d collections/my_collection
+.fi
+
+.TP
+Initialize with plugin documentation generation:
+.nf
+    changelog collection-new \\
+        --use-ansible-doc \\
+        --collection-namespace community.general \\
+        --reload-plugins
+.fi
+
+.TP
+Refresh existing collection changelog:
+.nf
+    changelog collection-new \\
+        --refresh \\
+        --refresh-plugins allow-removal \\
+        -d /path/to/existing/collection
+.fi
+.SH SEE ALSO
+.TP
+\fBchangelog-init(8)\fR \- Initialize general project changelog structure
+.TP
+\fBchangelog-release(8)\fR \- Generate release notes including plugin documentation

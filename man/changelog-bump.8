@@ -1,0 +1,133 @@
+.TH CHANGELOG-BUMP 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog bump \- bump VERSION.txt using environment variables or CI merge request labels
+.SH SYNOPSIS
+.B changelog bump
+[\fIlevel\fR] [\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBbump\fR command automatically updates the project's VERSION.txt file based on bump level indicators from environment variables or CI/CD pipeline labels. It supports semantic versioning (major, minor, patch) and release candidate (rc) versions.
+
+This is designed for integration with continuous integration systems where merge request labels trigger version bumps automatically.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+.B Positional Arguments:
+.TP
+\fIlevel\fR
+Optional bump level specification. Can be provided as positional argument or via environment variables/labels.
+
+Valid levels: major, minor, patch, rc
+
+.TP
+.B Optional Flags:
+.TP
+\fB\-l\fR, \fB\-\-level\fR=\fILEVEL\fR
+Alias for the positional bump level argument. Allows explicit level specification regardless of environment variables.
+
+.TP
+\fB\-\-version-file\fR=\fIPATH\fR
+Path to VERSION.txt file to update. Defaults to "VERSION.txt" in current directory. Can specify absolute or relative paths for custom version file locations.
+.SH BUMP LEVELS
+.PP
+The tool supports these version bump levels:
+
+.TP
+\fImajor\fR
+Increment major version number (X.\fIY\fR.Z → \fIX+1\fR.0.0). Used for breaking changes and incompatible API modifications.
+
+.TP
+\fIminor\fR
+Increment minor version number (X.Y.\fIZ\fR → X.\fIY+1\fR.0). Used for new features that maintain backward compatibility.
+
+.TP
+\fIpatch\fR
+Increment patch version number (X.Y.\fIZ\fR → X.Y.\fIZ+1\fR). Used for bug fixes and minor improvements.
+
+.TP
+\fIrc\fR
+Create release candidate version with incremental counter (X.Y.Z-rc.N → X.Y.Z-rc.\fIN+1\fR). Used for pre-release testing before final version.
+.SH ENVIRONMENT VARIABLE SUPPORT
+.PP
+The bump command checks these environment variables in order of priority:
+
+.RS 4
+.IP \(bu 2
+\fBCHANGELOG_BUMP_LEVEL\fR \- Explicit bump level override
+.IP \(bu 2
+\fBCI_MERGE_REQUEST_LABELS\fR \- Comma-separated list of CI/CD labels (checks for "bump-major", "bump-minor", "bump-patch")
+.IP \(bu 2
+\fBGITHUB_EVENT_PATH\fR \- GitHub Actions event payload (extracts labels from merge requests)
+.RE
+
+.TP
+.B Label Format:
+.PP
+CI systems should use labels prefixed with "bump-" to trigger version updates:
+.RS 4
+.IP \(bu 2
+"bump-major" → Major version increment
+.IP \(bu 2
+"bump-minor" → Minor version increment
+.IP \(bu 2
+"bump-patch" → Patch version increment
+.IP \(bu 2
+"rc-major", "rc-minor", "rc-patch" → Release candidate versions
+.RE
+
+.SH VERSION FILE FORMAT
+.PP
+VERSION.txt files contain a single line with the current version string:
+.nf
+    v1.2.3
+.fi
+
+.TP
+.B After bumping, the file is updated to reflect the new version:
+.RS 4
+.IP \(bu 2
+Major bump (1.2.3 → 2.0.0): "v2.0.0"
+.IP \(bu 2
+Minor bump (1.2.3 → 1.3.0): "v1.3.0"
+.IP \(bu 2
+Patch bump (1.2.3 → 1.2.4): "v1.2.4"
+.IP \(bu 2
+RC version (1.2.3-rc.1 → 1.2.3-rc.2): "v1.2.3-rc.2"
+.RE
+
+.SH EXAMPLES
+.TP
+Bump patch version using environment variable:
+.nf
+    export CHANGELOG_BUMP_LEVEL=patch
+    changelog bump
+.fi
+
+.TP
+Explicitly specify major version bump:
+.nf
+    changelog bump --level major
+.fi
+
+.TP
+Update custom version file location:
+.nf
+    changelog bump minor --version-file src/VERSION.txt
+.fi
+
+.TP
+Create release candidate version (CI/CD integration):
+.nf
+    # In CI pipeline with label "rc-minor"
+    export CI_MERGE_REQUEST_LABELS="rc-minor,needs-review"
+    changelog bump
+.fi
+
+.SH SEE ALSO
+.TP
+\fBchangelog-release(8)\fR \- Generate release notes after version bumping
+.TP
+\fBsemver.org\fR \- Semantic Versioning specification reference

@@ -1,0 +1,149 @@
+.TH CHANGELOG-GENERATE 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog generate \- regenerate changelog from stored metadata and fragments
+.SH SYNOPSIS
+.B changelog generate
+[\fIoptions\fR] [\fIVERSION\fR]
+.SH DESCRIPTION
+.PP
+The \fBgenerate\fR command regenerates the full changelog file from stored fragment data and metadata. Unlike \fBreleaserelease\fR which creates individual version entries, \fBgenerate\fR produces a complete CHANGELOG.md with all historical versions in reverse chronological order.
+
+This is useful for:
+.RS 4
+.IP \(bu 2
+Rebuilding the changelog after configuration changes
+.IP \(bu 2
+Regenerating after fragment modifications or additions
+.IP \(bu 2
+Creating fresh changelogs from .changes.yaml metadata files
+.RE
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+.B Positional Arguments:
+.TP
+\fIVERSION\fR
+Specific version to generate (e.g., "v1.0.0"). If omitted, generates the complete changelog with all versions.
+
+.TP
+.B Optional Flags:
+.TP
+\fB\-d\fR, \fB\-\-dir\fR=\fIPATH\fR
+Changelog base directory containing fragments/. Defaults to current directory's \fIchangelogs/\fR subdirectory.
+
+.TP
+\fB\-n\fR, \fB\-\-notes-dir\fR=\fIDIR\fR
+Additional fragment directories to merge into the output. Can be specified multiple times.
+
+.TP
+\fB\-o\fR, \fB\-\-output\fR=\fIFILE\fR
+Output file path for the generated changelog. Defaults to "CHANGELOG.md" in the current directory.
+
+.TP
+\fB\-\-only-latest\fR
+Only write the changelog entry for the latest version, without preamble of historical entries. Useful for incremental updates or when combined with \fB\-\-output\fR for targeted regeneration.
+
+.TP
+\fB\-\-reload\-plugins\fR
+Force reload of plugin cache during generation.
+
+.TP
+\fB\-\-refresh\fR
+Update existing entries from fragments and refresh plugin descriptions.
+
+.TP
+\fB\-\-refresh\-plugins\fR=\fIMODE\fR
+Specify how to handle plugin description updates: "allow-removal" or "prevent-removal".
+
+.TP
+\fB\-\-refresh\-fragments\fR=\fIMODE\fR
+Control which fragments to include: "without-archives" (default) or "with-archives".
+
+.TP
+\fB\-\-collection\-namespace\fR=\fINAMESPACE\fR
+Override the collection namespace for Ansible-style projects.
+
+.TP
+\fB\-\-collection\-name\fR=\fINAME\fR
+Override the collection name.
+
+.TP
+\fB\-\-collection\-flatmap\fR
+Enable flat mapping using short plugin names instead of fully qualified names.
+
+.TP
+\fB\-\-is\-collection\fR=\fIBOOL\fR
+Override whether this is a collection project (true/false/yes/no).
+
+.TP
+\fB\-\-no\-semantic\-versioning\fR
+Disable semantic versioning enforcement for this generation.
+.SH GENERATION PROCESS
+.PP
+The generate command:
+.RS 4
+.IP \(bu 2
+Reads all fragment files from main and notes directories
+.IP \(bu 2
+Loads existing .changes.yaml metadata if present
+.IP \(bu 2
+Processes fragments according to category priority and date sorting
+.IP \(bu 2
+Generates version entries with proper headers and formatting
+.IP \(bu 2
+Writes complete changelog file with all versions in reverse chronological order
+.RE
+
+.TP
+.B Output Structure:
+.nf
+    # Changelog
+    All notable changes to this project will be documented in this file.
+
+    ## [v1.0.0] - 2026-07-29
+    ### Breaking Changes / Porting Guide
+    * **PG-001**: Fixed crash when processing large files.
+
+    ### Bugfixes
+    * **IMP-456**: Added support for parallel processing.
+
+    ## [v0.9.0] - 2026-06-15
+    ... historical entries continue in reverse chronological order
+.fi
+.SH EXAMPLES
+.TP
+Generate complete changelog with all versions:
+.nf
+    changelog generate
+.fi
+
+.TP
+Generate only the latest version entry:
+.nf
+    changelog generate --only-latest --output CHANGELOG.md
+.fi
+
+.TP
+Regenerate for a specific version:
+.nf
+    changelog generate v1.2.0 --output releases/v1.2.0.md
+.fi
+
+.TP
+Generate with custom notes directories:
+.nf
+    changelog generate \\
+        -n changelogs/fragments/core \\
+        -n changelogs/notes/community \\
+        -o CHANGELOG.full.md
+.fi
+.SH SEE ALSO
+.TP
+\fBchangelog-release(8)\fR \- Generate individual release entries from fragments
+.TP
+\fBchangelog-add(8)\fR \- Create new fragment files
+.TP
+\fBchangelog-config(5)\fR \- Configuration file reference

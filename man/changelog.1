@@ -1,0 +1,133 @@
+.TH CHANGELOG 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog \- generate and manage changelogs from fragment files
+.SH SYNOPSIS
+.B changelog
+[\fIglobal options\fR] \fIcommand\fR [\fIcommand options\fR...]
+.SH DESCRIPTION
+.PP
+\fBchangelog\fR is a CLI tool for managing project changelogs using structured
+fragment files. It provides commands to initialize, create, validate, and generate
+release notes from YAML fragment files stored in a project's changelog directory.
+
+The tool follows a fragment-based workflow: developers add small YAML fragments
+describing individual changes, then the tool aggregates them into release
+changelogs with proper formatting and sorting.
+.SH GLOBAL OPTIONS
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version information and exit.
+
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message for the given command or global options if no command specified.
+
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Increase verbosity of output (can be used multiple times).
+
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Suppress non-essential output messages.
+.SH COMMANDS
+.PP
+The following commands are available:
+.TP
+\fBinit\fR [\fIoptions\fR]
+Initialize changelog infrastructure for a new or existing project.
+
+.TP
+\fBadd\fR [\fIoptions\fR]
+Create a new fragment file describing a single change.
+
+.TP
+\fBlint\fR [\fIoptions\fR]
+Validate all fragment files in a directory for correctness and consistency.
+
+.TP
+\fBrelease\fR [\fIoptions\fR]
+Generate release changelog entries from accumulated fragments.
+
+.TP
+\fBgenerate\fR [\fIoptions\fR]
+Regenerate the full changelog from stored fragment data.
+
+.TP
+\fBreformat\fR [\fIoptions\fR]
+Reformat and normalize changelog.yaml or .changes.yaml configuration files.
+
+.TP
+\fBcollection\-new\fR [\fIoptions\fR]
+Initialize a new Ansible collection's changelog directory structure.
+
+.TP
+\fBlint\-changelog\-yaml\fR [\fIoptions\fR]
+Validate the syntax and structure of a changelog.yaml configuration file.
+
+.TP
+\fBlog\fR [\fIoptions\fR]
+Display fragments in a git-log style format with pagination support.
+
+.TP
+\fBbump\fR [\fIlevel\fR]
+Bump VERSION.txt based on bump label environment variable or CI merge request labels.
+
+.TP
+\fBpreview\fR [\fIoptions\fR]
+Render fragment changes as colored markdown output to stdout.
+
+.TP
+\fBlicense\fR [\fIoptions\fR]
+Print the project license (CYMERTEK Source-Available License).
+.SH FILE LOCATIONS
+.PP
+By default, changelog looks for configuration and fragments in:
+.IP \(bu 2
+\fIchangelogs/config.yaml\fR \- Project configuration
+.IP \(bu 2
+\fIchangelogs/fragments/\fR \- Fragment files directory
+.IP \(bu 2
+\fI.changes.yaml\fR \- Machine-readable change metadata (created on release)
+.PP
+Use the \fB\-d\fR or \fB\-\-dir\fR flag with individual commands to override these paths.
+.SH EXAMPLES
+.TP
+Initialize a new project:
+.nf
+    changelog init myproject
+.fi
+
+.TP
+Add a bugfix fragment:
+.nf
+    changelog add \\
+        --category bugfixes \\
+        --issue PG-001 \\
+        --text "Fixed crash when processing large files" \\
+        --title "Stability improvement"
+.fi
+
+.TP
+Validate all fragments:
+.nf
+    changelog lint changelogs/fragments/
+.fi
+
+.TP
+Generate a release changelog:
+.nf
+    changelog release --version v1.0.0 --output CHANGELOG.md
+.fi
+
+.TP
+View fragments in log style:
+.nf
+    changelog log -d changelogs/fragments/ --page-size 25
+.fi
+.SH SEE ALSO
+.TP
+\fBchangelog\-fragment(5)\fR \- Fragment file format specification
+.TP
+\fBchangelog\-config(5)\fR \- Configuration file reference
+.TP
+\fBinit(1)\fR, \fBadd(1)\fR, \fBlint(1)\fR \- Individual command man pages

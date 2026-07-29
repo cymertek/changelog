@@ -1,0 +1,138 @@
+.TH CHANGELOG-LINT 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog lint \- validate fragment files for correctness and consistency
+.SH SYNOPSIS
+.B changelog lint
+[\fIoptions\fR] [\fIfragment\-files...\fR]
+.SH DESCRIPTION
+.PP
+The \fBlint\fR command validates one or more fragment files (or all fragments in a directory)
+for structural correctness, required fields, and best practices. It checks for common
+issues like missing dates, invalid categories, malformed YAML, and content problems.
+
+Linting is essential before releasing to ensure changelog quality and consistency. The tool
+provides both basic validation and strict mode with additional checks.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+\fB\-d\fR, \fB\-\-dir\fR=\fIPATH\fR
+Main fragment directory to validate. Defaults to \fIchangelogs/fragments/\fR in the current project root.
+.PP
+Can be combined with positional arguments for mixed validation (specific files + directory).
+
+.TP
+\fB\-s\fR, \fB\-\-strict\fR
+Enable strict validation mode with additional checks:
+.RS 4
+.IP \(bu 2
+Require date field on all fragments
+.IP \(bu 2
+Validate link syntax in fragment content
+.IP \(bu 2
+Check for empty body text
+.IP \(bu 2
+Detect colon-in-string issues that cause PyYAML parsing problems
+.RE
+
+.TP
+\fB\-\-page\-size\fR=\fIN\fR
+Number of entries per page when displaying results interactively. Defaults to 10.
+.SH POSITIONAL ARGUMENTS
+.PP
+Specific fragment file paths to validate individually. If omitted, all fragments in the
+specified directory (or \fB\-\-dir\fR) are validated.
+
+Valid extensions: .yml, .yaml, .md
+.SH VALIDATION RULES
+.TP
+.B Basic checks (always enabled):
+.RS 4
+.IP \(bu 2
+File exists and is readable
+.IP \(bu 2
+YAML syntax is valid
+.IP \(bu 2
+Required fields present: category, issue, text/title
+.IP \(bu 2
+Category matches known values (bugfixes, minor_changes, etc.)
+.IP \(bu 2
+Issue ID format is reasonable (non-empty, alphanumeric with hyphens)
+.RE
+
+.TP
+.B Strict checks (\fB\-\-strict\fR flag required):
+.RS 4
+.IP \(bu 2
+Date field present and in YYYY-MM-DD format
+.IP \(bu 2
+No colon-in-string issues that break YAML parsing
+.IP \(bu 2
+Body text is not empty or whitespace-only
+.IP \(bu 2
+Link syntax (if any) follows valid URL patterns
+.RE
+
+.TP
+.B Common issues detected:
+.RS 4
+.IP \(bu 2
+\fIColon in unquoted strings\fR \- "Fixed issue: crash" parses as dict instead of string
+.IP \(bu 2
+\fIMissing required fields\fR \- Fragments without category or issue ID
+.IP \(bu 2
+\fIInvalid categories\fR \- Typos like "bugfix" instead of "bugfixes"
+.IP \(bu 2
+\fIDuplicate fragment names\fR - Same filename in same directory (collision detection)
+.RE
+.SH EXIT CODES
+.TP
+\fB0\fR
+All fragments passed validation successfully.
+
+.TP
+\fB1\fR
+One or more validation errors found. Output lists each error with file and line reference.
+
+.TP
+\fB2\fR
+Internal error (directory not found, permission denied, etc.).
+.SH EXAMPLES
+.TP
+Validate all fragments in default directory:
+.nf
+    changelog lint
+.fi
+
+.TP
+Validate specific fragment files:
+.nf
+    changelog lint changelogs/fragments/PG-001-bugfixes.yml changelogs/fragments/IMP-456-enhancement.yml
+.fi
+
+.TP
+Run strict validation with additional checks:
+.nf
+    changelog lint --strict
+.fi
+
+.TP
+Validate fragments in a custom directory:
+.nf
+    changelog lint -d /path/to/custom/fragments/
+.fi
+
+.SH OUTPUT FORMAT
+.PP
+Validation results display one line per error:
+.IP \(bu 2
+\fI<filename>: <error description>\fR
+.PP
+After listing all errors, a summary shows total count. Use \fB\-\-strict\fR for comprehensive validation.
+.SH SEE ALSO
+.TP
+\fBchangelog-add(8)\fR \- Create new fragment files (with linting recommendations)
+.TP
+\fBchangelog-release(8)\fR \- Generate release notes from validated fragments

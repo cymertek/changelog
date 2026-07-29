@@ -1,0 +1,70 @@
+.TH CHANGELOG-REFORMAT 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog reformat \- reformat and normalize changelog configuration files
+.SH SYNOPSIS
+.B changelog reformat
+[\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBreformat\fR command reformats and normalizes changelog.yaml or .changes.yaml configuration files. It ensures consistent formatting, applies default values where missing, and validates the structure of configuration data.
+
+This is particularly useful after manual edits to config files, when merging configurations from different sources, or when preparing files for version control with consistent styling.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+\fB\-\-is\-collection\fR=\fIBOOL\fR
+Override whether this is a collection project (true/false/yes/no). Affects how configuration is interpreted and reformatted.
+
+.TP
+\fB\-d\fR, \fB\-\-dir\fR=\fIPATH\fR
+Changelog base directory containing config files. Defaults to current directory's \fIchangelogs/\fR subdirectory.
+.SH CONFIGURATION FILES HANDLED
+.PP
+The reformat command processes these file types:
+.RS 4
+.IP \(bu 2
+\fIchangelogs/config.yaml\fR \- Main project configuration with fragment settings, section definitions, and output options
+.IP \(bu 2
+\fI.changes.yaml\fR \- Machine-readable metadata storing version history and fragment references
+.RE
+
+.TP
+.B Reformatting Actions:
+.RS 4
+.IP \(bu 2
+Normalize YAML indentation to consistent 2-space style
+.IP \(bu 2
+Sort keys alphabetically within sections for readability
+.IP \(bu 2
+Apply default values for missing optional fields
+.IP \(bu 2
+Validate structure against expected schema
+.IP \(bu 2
+Preserve comments and formatting where possible
+.RE
+.SH EXAMPLES
+.TP
+Reformat changelog.yaml in current directory:
+.nf
+    changelog reformat
+.fi
+
+.TP
+Reformat with custom collection namespace override:
+.nf
+    changelog reformat --is-collection true -d /path/to/collection
+.fi
+
+.TP
+Normalize .changes.yaml metadata file:
+.nf
+    changelog reformat -d changelogs/
+.fi
+.SH SEE ALSO
+.TP
+\fBchangelog-config(5)\fR \- Configuration file reference and options
+.TP
+\fBchangelog-lint-changelog-yaml(8)\fR \- Validate configuration syntax

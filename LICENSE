@@ -1,0 +1,170 @@
+CYMERTEK SOURCE-AVAILABLE LICENSE (CSAL) v1.0
+
+Copyright (c) 2026 CYMERTEK and original authors. All rights reserved.
+
+PRODUCT: changelog CLI Tool ("Software")
+
+Effective Date: July 29, 2026
+
+===========================================================================
+1. LICENSE GRANT
+
+Subject to the terms and conditions of this License, Licensor hereby grants
+you a worldwide, royalty-free, non-exclusive license to use, copy, modify,
+and distribute the Software for evaluation purposes only, provided that:
+
+(a) You retain all copyright, patent, trademark, and attribution notices
+    contained in the Software;
+
+(b) Use is strictly limited to personal evaluation, testing, or learning
+    in a non-fee-based environment — any environment where you or your
+    organization collects a fee (including tuition, subscription, service
+    charges, or access fees) requires a Commercial License;
+
+(c) You do not use the Software in any production or commercial environment
+    without first obtaining a separate Commercial License from Licensor;
+
+(d) Any forks, modifications, or derivative works clearly identify themselves
+    as unofficial versions and maintain this license notice.
+
+===========================================================================
+2. COMMERCIAL USE RESTRICTION
+
+"Commercial Use" means any use of the Software in connection with:
+
+(a) A business, commercial enterprise, or profit-making organization;
+
+(b) Providing the Software to third parties as part of a product, service,
+    or platform for which you charge fees — including but not limited to
+    subscription services, SaaS offerings, managed hosting, on-demand tooling,
+    and pay-per-use environments;
+
+(c) Internal production systems used by employees, contractors, or partners
+    in the course of business operations;
+
+(d) Educational, training, or instructional environments where a fee is
+    collected for access to the Software — including paid courses, boot camps,
+    tuition programs, certification platforms, and any institution or individual
+    charging for instruction that incorporates the Software as part of its
+    curriculum or service delivery.
+
+You must obtain a separate Commercial License from CYMERTEK before engaging
+in any Commercial Use. Contact: licensing@cymertek.com or visit
+https://github.com/cymertek/changelog for licensing terms.
+
+===========================================================================
+3. CONTRIBUTION TERMS
+
+By submitting a pull request, patch, bug fix, documentation update, or any
+other contribution to the Software (collectively, "Contributions"):
+
+(a) You assign all right, title, and interest in and to such Contributions
+    to CYMERTEK;
+
+(b) You represent that you have the legal authority to make this assignment;
+
+(c) CYMERTEK retains sole discretion on whether to accept any Contribution;
+
+(d) Accepted Contributions become part of the Software and are subject to
+    this License.
+
+===========================================================================
+4. FORKS AND DERIVATIVE WORKS
+
+If you create a fork, modification, or derivative work of the Software:
+
+(a) You must clearly label it as "unofficial" or "community edition";
+
+(b) You must retain all original copyright notices and this license;
+
+(c) You may not use CYMERTEK trademarks, logos, or brand identifiers without
+    written permission;
+
+(d) You are not authorized to provide commercial support, maintenance, or
+    licensing for derivative works.
+
+===========================================================================
+5. NO RESALE WITHOUT LICENSE
+
+You may not resell, sublicense, or distribute the Software (or any portion
+thereof) as part of a commercial product, service, or platform without a
+written license agreement from CYMERTEK. This includes but is not limited to:
+
+(a) SaaS offerings that bundle the Software;
+
+(b) Managed services providing the Software to customers;
+
+(c) Commercial distributions through package managers, repositories, or
+    marketplaces for a fee;
+
+(d) Educational platforms, training portals, or instruction services where
+    access to the Software is tied to a paid course, subscription, or tuition
+    arrangement.
+
+===========================================================================
+6. SUPPORT AND MAINTENANCE
+
+Official support, maintenance, and updates are provided only to holders of
+a valid Commercial License issued by CYMERTEK. Community contributions do not
+constitute official support unless explicitly stated in writing by CYMERTEK.
+
+===========================================================================
+7. WARRANTY DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+===========================================================================
+8. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL CYMERTEK
+BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL OR PUNITIVE
+DAMAGES, INCLUDING WITHOUT LIMITATION DAMAGES FOR LOSS OF PROFITS, GOODWILL,
+DATA, OR OTHER INTANGIBLE LOSINGS, ARISING OUT OF OR RELATED TO THE USE OF
+OR INABILITY TO USE THE SOFTWARE.
+
+===========================================================================
+9. TERMINATION
+
+This license terminates automatically upon breach of any term. Upon
+termination, you must cease all use, distribution, and modification of the
+Software and destroy all copies in your possession or control.
+
+===========================================================================
+10. GOVERNING LAW
+
+This License shall be governed by and construed in accordance with the laws
+of the State of California, without regard to its conflict of law provisions.
+Any disputes arising under this License shall be subject to the exclusive
+jurisdiction of the courts located in the State of California.
+
+===========================================================================
+11. CONTACT AND LICENSING INQUIRIES
+
+For Commercial License inquiries, support entitlements, or custom licensing
+arrangements:
+
+  Email:    licensing@cymertek.com
+  Website:  https://github.com/cymertek/changelog
+
+===========================================================================
+12. TRADEMARKS AND NOMINATIVE USE
+
+The term "ansible" is a registered trademark of Red Hat, Inc. Any references to
+this mark in this software, documentation, or codebase are made solely for
+nominative descriptive purposes — to identify the upstream products and tools
+with which this software maintains compatibility.
+
+This use does not imply endorsement, affiliation, sponsorship, or any
+relationship between CYMERTEK and the trademark holders. All trademarks remain
+the property of their respective owners.
+
+DERIVATION NOTICE
+
+This software is original work by CYMERTEK. No derivation from other open
+source projects or third-party codebases is claimed. All rights reserved.

@@ -1,0 +1,239 @@
+.TH CHANGELOG-RELEASE 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog release \- generate release changelog entries from accumulated fragments
+.SH SYNOPSIS
+.B changelog release
+[\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBrelease\fR command aggregates all fragment files into a structured release changelog. It processes fragments in the configured directory, applies sorting and filtering rules, generates version entries with proper formatting, and archives processed fragments according to configuration settings.
+
+This is the primary workflow command for producing release notes. Fragments accumulate over time as developers add them via \fBchangelog add\fR, then \fBrelease\fR consolidates them into a coherent changelog entry for each version.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+.B Required:
+.TP
+\fB\-v\fR, \fB\-\-version\fR=\fIVERSION\fR
+Release version in semver format (e.g., "v1.0.0", "2.3.1"). Must match the project's configured version pattern.
+
+.TP
+.B Optional:
+.TP
+\fB\-\-date\fR=\fIYYYY\-MM\-DD\fR
+Release date. Defaults to today if not specified. Used for chronological ordering and metadata.
+
+.TP
+\fB\-\-codename\fR=\fICODENAME\fR
+Human-readable codename for the release (e.g., "Stardust", "Nebula"). Displayed in changelog headers when configured.
+
+.TP
+\fB\-d\fR, \fB\-\-dir\fR=\fIPATH\fR
+Changelog base directory containing fragments/. Defaults to current directory's \fIchangelogs/\fR subdirectory.
+
+.TP
+\fB\-n\fR, \fB\-\-notes-dir\fR=\fIDIR\fR
+Additional fragment directories to merge into the release output. Can be specified multiple times for multiple notes directories. Useful for organizing fragments by subsystem or team.
+
+.TP
+\fB\-o\fR, \fB\-\-output\fR=\fIFILE\fR
+Output file path for the generated changelog entry. Defaults to "CHANGELOG.md" in the current directory. Can be absolute or relative paths.
+
+.TP
+\fB\-\-reload\-plugins\fR
+Force reload of plugin cache during release generation. Useful when plugins have been added/removed since last release.
+
+.TP
+\fB\-\-refresh\fR
+Update existing entries from fragments and refresh plugin descriptions. Combines fragment processing with metadata updates.
+
+.TP
+\fB\-\-refresh\-plugins\fR=\fIMODE\fR
+Specify how to handle plugin description updates:
+.RS 4
+.IP \(bu 2
+\fIallow\-removal\fR (default) \- Allow plugins to be removed from changelog if no longer present
+.IP \(bu 2
+\fIprevent\-removal\fR \- Keep all previously documented plugins even if source files changed
+.RE
+
+.TP
+\fB\-\-refresh\-fragments\fR=\fIMODE\fR
+Control which fragments to include in refresh:
+.RS 4
+.IP \(bu 2
+\fIwithout\-archives\fR (default) \- Only process non-archived fragments
+.IP \(bu 2
+\fIwith\-archives\fR \- Include archived/processed fragments for full regeneration
+.RE
+
+.TP
+\fB\-\-collection\-namespace\fR=\fINAMESPACE\fR
+Override the collection namespace for Ansible-style projects. Used when generating plugin documentation references.
+
+.TP
+\fB\-\-collection\-name\fR=\fINAME\fR
+Override the collection name. Combined with \fB\-\-collection\-namespace\fR for fully qualified plugin paths.
+
+.TP
+\fB\-\-collection\-flatmap\fR
+Enable flat mapping of collections, using short plugin names instead of fully qualified names in output.
+
+.TP
+\fB\-\-is\-collection\fR=\fIBOOL\fR
+Override whether this is a collection project (true/false/yes/no). Affects how fragments are processed and output formatting.
+
+.TP
+\fB\-\-update\-existing\fR
+If a release entry already exists for this version, update its date/codename instead of erroring out. Useful for correcting metadata on existing releases.
+
+.TP
+\fB\-\-cumulative\-release\fR
+Include all plugins/modules added since the previous release or ancestor version. Generates comprehensive "what's new" sections.
+
+.TP
+\fB\-\-no\-semantic\-versioning\fR
+Disable semantic versioning enforcement for this release. Allows non-semver version strings (e.g., "latest", "nightly").
+.SH FRAGMENT PROCESSING
+.PP
+During release generation, the tool:
+.RS 4
+.IP \(bu 2
+Reads all fragment files from the main directory and any notes directories
+.IP \(bu 2
+Validates each fragment against configured rules (see \fBchangelog-lint(8)\fR)
+.IP \(bu 2
+Groups fragments by category and version
+.IP \(bu 2
+Applies sorting rules based on category priority and date
+.IP \(bu 3
+Generates markdown output with proper headers, sections, and formatting
+.IP \(bu 4
+Archives processed fragments according to \fBkeep_fragments\fR configuration
+.RE
+
+.TP
+.B Category Priority (rendering order):
+.RS 4
+.IP \(bu 2
+1. Breaking Changes / Porting Guide
+.IP \(bu 2
+2. Major Changes
+.IP \(bu 2
+3. Deprecated Features
+.IP \(bu 2
+4. Removed Features
+.IP \(bu 2
+5. Bugfixes
+.IP \(bu 2
+6. Security Fixes
+.IP \(bu 2
+7. Minor Changes
+.IP \(bu 2
+8. Known Issues
+.RE
+
+.TP
+.B Archiving Behavior:
+.RS 4
+.IP \(bu 2
+Fragments are moved to \fI.changes/archives/\fR after processing (default)
+.IP \(bu 2
+Set \fBkeep_fragments: true\fR in config.yaml to retain fragments after release
+.IP \(bu 2
+Archive directory can be customized via \fBarchive_path_template\fR in configuration
+.RE
+.SH OUTPUT FORMAT
+.PP
+Generated changelog entries follow this structure:
+.nf
+    ## [v1.0.0] - 2026-07-29
+
+    ### Breaking Changes / Porting Guide
+    * **PG-001**: Fixed crash when processing large files.
+
+    ### Bugfixes
+    * **IMP-456**: Added support for parallel processing.
+
+    ### Minor Changes
+    * **DOC-123**: Documentation updates.
+.fi
+
+.TP
+.B Version Headers:
+.RS 4
+.IP \(bu 2
+Format: \fI## [vX.Y.Z] - YYYY-MM-DD\fR (or codename if specified)
+.IP \(bu 2
+Includes semver version with 'v' prefix and release date
+.RE
+
+.TP
+.B Section Headers:
+.RS 4
+.IP \(bu 2
+Format: \fI### <Category Name>\fR matching configured section titles
+.IP \(bu 2
+Categories render in priority order as listed above
+.RE
+
+.TP
+.B Fragment Entries:
+.RS 4
+.IP \(bu 2
+Format: \fI* **<issue>**: <text>\fR for simple entries
+.IP \(bu 2
+Multi-line content wrapped with proper indentation
+.IP \(bu 2
+Code blocks preserved with syntax highlighting if configured
+.RE
+.SH EXAMPLES
+.TP
+Basic release generation:
+.nf
+    changelog release --version v1.0.0
+.fi
+
+.TP
+Release with custom date and codename:
+.nf
+    changelog release \\
+        --version v2.1.0 \\
+        --date 2026-08-15 \\
+        --codename "Nebula" \\
+        --output releases/v2.1.0.md
+.fi
+
+.TP
+Release with multiple notes directories:
+.nf
+    changelog release \\
+        --version v3.0.0 \\
+        -n changelogs/fragments/core \\
+        -n changelogs/fragments/plugins \\
+        -n changelogs/notes/community
+.fi
+
+.TP
+Release with plugin refresh and cumulative mode:
+.nf
+    changelog release \\
+        --version v1.5.0 \\
+        --refresh \\
+        --refresh-plugins allow-removal \\
+        --cumulative-release \\
+        --collection-namespace myorg.myplugin
+.fi
+
+.SH SEE ALSO
+.TP
+\fBchangelog-add(8)\fR \- Create new fragment files
+.TP
+\fBchangelog-lint(8)\fR \- Validate fragments before release
+.TP
+\fBchangelog-generate(8)\fR \- Regenerate changelog from stored metadata
+.TP
+\fBchangelog-config(5)\fR \- Configuration file reference

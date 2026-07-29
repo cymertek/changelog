@@ -1,0 +1,108 @@
+.TH CHANGELOG-LINT-CHANGELOG-YAML 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog lint\-changelog\-yaml \- validate changelog.yaml configuration file syntax and structure
+.SH SYNOPSIS
+.B changelog lint\-changelog\-yaml
+\fICHANGELOG_YAML_PATH\fR [\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBlint\-changelog\-yaml\fR command validates the syntax, structure, and field values of a changelog.yaml configuration file. It checks for common errors like invalid YAML formatting, missing required fields, incorrect data types, and unsupported options.
+
+This is essential before running release or generate commands to ensure the configuration is valid and will produce expected output.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+\fB\-\-strict\fR
+Enable strict validation with additional checks:
+.RS 4
+.IP \(bu 2
+Complain about extra entries not in changelog.yaml spec (unknown fields)
+.IP \(bu 2
+Validate all referenced directories exist
+.IP \(bu 2
+Check for deprecated or conflicting option combinations
+.RE
+
+.TP
+\fB\-\-no\-semantic\-versioning\fR
+Assume use_semantic_versioning=false in the changelog config. Disables semver enforcement during validation.
+.SH REQUIRED FIELDS VALIDATED
+.PP
+The linter checks for these essential configuration fields:
+.RS 4
+.IP \(bu 2
+\fBtitle\fR \- Project title (required, string)
+.IP \(bu 2
+\fBversion_pattern\fR \- Regex pattern for version validation (optional but recommended)
+.IP \(bu 2
+\fBkeep_fragments\fR \- Boolean controlling fragment retention after release
+.RE
+
+.TP
+.B Supported Field Types:
+.RS 4
+.IP \(bu 2
+Strings: title, codename, changelog_filename_template
+.IP \(bu 2
+Booleans: keep_fragments, is_other_project, sanitize_changelog, use_fqcn
+.IP \(bu 2
+Integers: changelog_filename_version_depth, page_size (for log command)
+.IP \(bu 2
+Arrays: output_formats, templates, notes_dirs
+.IP \(bu 2
+Maps: sections (category to display name mapping), custom_templates
+.RE
+
+.TP
+.B Common Validation Errors:
+.RS 4
+.IP \(bu 2
+\fIMissing title field\fR \- Required for all changelog configurations
+.IP \(bu 2
+\fIInvalid version_pattern regex\fR \- Regex syntax errors in pattern definition
+.IP \(bu 2
+\fIBad data types\fR \- String where integer expected, boolean where string required
+.IP \(bu 2
+\fIUnknown fields\fR \- Options not recognized by current changelog version
+.IP \(bu 2
+\fIDeprecated options\fR - Legacy settings that should be updated
+.RE
+.SH EXAMPLES
+.TP
+Validate default changelog.yaml in current directory:
+.nf
+    changelog lint-changelog-yaml changelogs/config.yaml
+.fi
+
+.TP
+Run strict validation with additional checks:
+.nf
+    changelog lint-changelog-yaml --strict changelogs/config.yaml
+.fi
+
+.TP
+Validate configuration without semver enforcement:
+.nf
+    changelog lint-changelog-yaml --no-semantic-versioning custom-config.yaml
+.fi
+
+.SH EXIT CODES
+.TP
+\fB0\fR
+Configuration file is valid with no errors.
+
+.TP
+\fB1\fR
+Validation errors found. Output lists each error with field name and description.
+
+.TP
+\fB2\fR
+Internal error (file not found, permission denied, parse failure).
+.SH SEE ALSO
+.TP
+\fBchangelog-config(5)\fR \- Complete configuration reference with all options
+.TP
+\fBchangelog-reformat(8)\fR \- Reformat and normalize configuration files
