@@ -26,6 +26,7 @@ env:
   GO_VERSION: "1.25"
   REGISTRY_IMAGE: golang:alpine
   BINARY_NAME: changelog
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Force Node.js 24 for JS actions (GitHub deprecation)
 
 jobs:
   version-bump:
@@ -38,7 +39,7 @@ jobs:
       next_version: ${{ steps.determine-version.outputs.next_version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5  # Node.js 24 compatible
 
       - name: Read current version from VERSION.txt (or derive from git tags)
         id: read-version
@@ -74,6 +75,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
             -w /src \
+            -e "BUMP_LEVEL=$BUMP_LEVEL" \  # Pass BUMP_LEVEL into container
             golang:alpine \
             sh -c 'umask 002 && apk add --no-cache git ca-certificates && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64'
 
@@ -142,7 +144,7 @@ jobs:
       - name: Upload bump artifacts for second pass
         # NOTE: We upload all Go source files so the second-pass build has everything it needs.
         # This includes any files modified by `changelog bump` (main.go, VERSION.txt) plus unchanged sources.
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5  # Node.js 24 compatible
         with:
           name: version-bump-artifacts
           path: |
@@ -165,7 +167,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download bumped files from first pass
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5  # Node.js 24 compatible
         with:
           name: version-bump-artifacts
 
