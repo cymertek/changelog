@@ -8,22 +8,9 @@
 name: build-and-release
 
 on:
-  push:
-    tags: ["v*"]
   pull_request:
-    types: [labeled, synchronize]
+    types: [opened, synchronize]
     labels: ['bump-*']
-  workflow_dispatch: # manual trigger for ad-hoc builds
-    inputs:
-      bump_level:
-        description: 'Version bump level (major/minor/patch)'
-        required: true
-        default: 'minor'
-        type: choice
-        options:
-          - major
-          - minor
-          - patch
 
 env:
   GO_VERSION: "1.25"
@@ -56,44 +43,22 @@ jobs:
             echo "No VERSION.txt found — will derive from git tags via `changelog bump`"
           fi
 
-      - name: Export bump level from workflow input, PR labels, or use patch as default
+      - name: Export bump level from PR labels (bump-major, bump-minor, bump-patch)
         run: |
-          BUMP_LEVEL=""
+          # Extract bump level from PR labels like "bump-minor" → "minor"
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+          BUMP_LEVEL=$(echo "$LABELS" | grep -oE 'bump-(major|minor|patch)' | head -1 | sed 's/bump-//')
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # Manual trigger with explicit input
-            BUMP_LEVEL="${{ inputs.bump_level || '' }}"
-          elif [ "${{ github.event_name }}" = "pull_request" ] && [ -n "${{ join(github.event.pull_request.labels.*.name, ',') }}" ]; then
-            # Extract bump level from PR labels like "bump-minor" → "minor"
-            LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
-            BUMP_LEVEL=$(echo "$LABELS" | grep -oE 'bump-(major|minor|patch)' | head -1 | sed 's/bump-//')
-          fi
-
-          # If no bump level was determined, use devel-[short hash] instead of auto-patching
           if [ -z "$BUMP_LEVEL" ]; then
-            SHORT_HASH=$(git rev-parse --short=7 HEAD)
-            BUMP_LEVEL="devel-${SHORT_HASH}"
-            echo "No explicit bump label — using development version: $BUMP_LEVEL"
+            echo "ERROR: No bump-* label found on PR. Expected one of: bump-major, bump-minor, bump-patch" >&2
+            exit 1
           fi
 
-          # Determine if we need RC suffix (non-master PRs get rc#)
+          # Since this only runs on PRs (not master/main pushes), always append RC suffix
           IS_MASTER=false
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # Check if this is a tag push to master/main branch
-            BRANCH="${GITHUB_REF#refs/heads/}"
-            if [[ "$BRANCH" == "master" || "$BRANCH" == "main" ]]; then
-              IS_MASTER=true
-            fi
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            # For PRs, only master/main merges skip RC suffix
-            BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
-            if [[ "$BASE_BRANCH" == "master" || "$BASE_BRANCH" == "main" ]]; then
-              IS_MASTER=true
-            fi
-          fi
 
-          echo "IS_MASTER=$IS_MASTER" >> "$GITHUB_ENV"
           echo "BUMP_LEVEL=$BUMP_LEVEL" >> "$GITHUB_ENV"
+          echo "IS_MASTER=$IS_MASTER" >> "$GITHUB_ENV"
           export BUMP_LABEL="$BUMP_LEVEL"
       - name: Determine bump level and next version via Go binary
         id: determine-version
