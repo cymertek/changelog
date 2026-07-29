@@ -52,27 +52,23 @@ jobs:
             echo "No VERSION.txt found — will derive from git tags via `changelog bump`"
           fi
 
-      - name: Export PR label names (comma-separated) for bump detection
-        # Handle both tag pushes (no PR labels) and workflow_dispatch inputs.
+      - name: Export bump level from workflow input or use patch as default
+        # For tag pushes, there are no PR labels — always pass a valid level.
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            LABELS="${{ inputs.bump_level && format('bump-{0}', inputs.bump_level) || '' }}"
+            BUMP_LEVEL="${{ inputs.bump_level || 'patch' }}"
           else
-            # For tag pushes, PR labels may be undefined — default to empty string.
-            LABELS=""
+            BUMP_LEVEL="patch"  # Default for tag pushes (no PR context)
           fi
-          echo "PR_LABELS=$LABELS" >> "$GITHUB_ENV"
+          echo "BUMP_LEVEL=$BUMP_LEVEL" >> "$GITHUB_ENV"
       - name: Determine bump level and next version via Go binary
         id: determine-version
-        env:
-          CI_MERGE_REQUEST_LABELS: ${{ github.event.inputs.bump_level != '' && format('bump-{0}', github.event.inputs.bump_level) || '' }}
         run: |
           # NOTE: The `changelog bump` command now handles deriving VERSION.txt from git tags
           # when the file doesn't exist (via latestGitTag() in main.go). This is the single source
           # of truth for version derivation — no shell-based fallback needed.
 
-          echo "CI_MERGE_REQUEST_LABELS: ${CI_MERGE_REQUEST_LABELS:-none}"
-          echo "PR Labels: ${PR_LABELS:-none}"
+          echo "Bump level input: ${{ inputs.bump_level || 'patch' }}"
 
           # Build test binary to use for bumping (use sh, not bash — Alpine doesn't include it)
           docker run --rm \
@@ -88,8 +84,6 @@ jobs:
           fi
 
           # Run the bump command — it will derive current version from git tags if VERSION.txt missing.
-          # Use CI_MERGE_REQUEST_LABELS for automatic detection, fall back to patch level.
-          BUMP_LEVEL="${CI_MERGE_REQUEST_LABELS:-patch}"
           ./changelog-linux-amd64 bump "$BUMP_LEVEL" || {
             echo "ERROR: bump failed. Check that git tags exist or VERSION.txt is present." >&2
             exit 1
