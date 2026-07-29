@@ -232,6 +232,7 @@ type args struct {
 	PageSize    int      // log page size
 	BumpLabel   string   // bump level
 	VersionFile string   // bump version file path
+	Rc          bool     // append -rc.N suffix for non-master PR pipelines
 
 	// reformat / collection-new
 	CollectionNamespace string
@@ -387,7 +388,7 @@ func parseFlags(argv []string) (*args, error) {
 	case "bump":
 		return &args{
 			Action: actionBump, BumpLabel: opts.Bump.Level,
-			VersionFile: opts.Bump.VersionFile,
+			VersionFile: opts.Bump.VersionFile, Rc: opts.Bump.Rc,
 		}, nil
 
 	case "license":
@@ -1231,6 +1232,18 @@ func (a *args) runBump() {
 		os.Exit(1)
 	}
 
+	// Special case: devel- prefixed versions are development builds, not real releases.
+	// Skip bump logic and write directly to VERSION.txt.
+	if strings.HasPrefix(level, "devel-") {
+		versionStr := level
+		fmt.Printf("Setting development version: %s\n", versionStr)
+		if err := os.WriteFile(a.VersionFile, []byte(versionStr+"\n"), 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "write version file: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	cur, err := changelog.ReadVersionFile(a.VersionFile)
 	if err != nil {
 		// VERSION.txt doesn't exist — fall back to git tags for latest version.
@@ -1271,6 +1284,20 @@ func (a *args) runBump() {
 	}
 
 	versionStr := newVer.PrefixedString() // includes 'v' prefix for VERSION.txt (e.g., "v1.3.0")
+
+	// If --rc flag is set AND this wasn't an explicit RC increment, append -rc.N suffix
+	// based on existing RC tags for this base version. When level="rc", we already did an
+	// RC bump and shouldn't double-suffix.
+	if a.Rc && !isRc {
+		rcSuffix, err := findAndAppendRC(versionStr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error finding RC suffix: %v\n", err)
+			os.Exit(1)
+		}
+		versionStr += rcSuffix
+		fmt.Printf("Appending RC suffix: %s\n", versionStr)
+	}
+
 	if err := os.WriteFile(a.VersionFile, []byte(versionStr+"\n"), 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "write version file: %v\n", err)
 		os.Exit(1)
@@ -1287,10 +1314,10 @@ func (a *args) runBump() {
 }
 
 // latestGitTag queries the git repository for the highest semver tag and returns it as a SemVer.
-// It lists all tags matching 'v*' pattern, parses them, and returns the maximum version found.
+// It lists all tags matching 'v*' pattern (no sort — linear scan in Go keeps only the largest).
 func latestGitTag() (*changelog.SemVer, error) {
-	// Get all tags sorted by version (descending), take the first valid one.
-	cmd := exec.Command("git", "tag", "--list", "v*", "--sort=-version:refname")
+	// Get all tags unsorted; we walk them in Go keeping only the highest version found.
+	cmd := exec.Command("git", "tag", "--list", "v*")
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list git tags: %w", err)
@@ -1315,10 +1342,55 @@ func latestGitTag() (*changelog.SemVer, error) {
 	}
 
 	if best == nil {
-		return nil, fmt.Errorf("no valid semver tags found in repository")
+		fmt.Fprintf(os.Stderr, "WARNING: no valid semver tags found in repository — assuming v0.0.0 as starting version\n")
+		return changelog.ParseSemver("0.0.0")
 	}
 
 	return best, nil
+}
+
+// findAndAppendRC finds existing RC tags for the given base version and returns "-rc.N" suffix.
+// It walks git tags without sorting — keeping only the highest RC number found.
+func findAndAppendRC(versionStr string) (string, error) {
+	// Strip any existing -rc.N suffix to get base version (e.g., "v0.0.1-rc.5" → "v0.0.1")
+	baseVer := versionStr
+	if idx := strings.LastIndex(baseVer, "-rc."); idx >= 0 {
+		baseVer = baseVer[:idx]
+	}
+
+	// Build git tag pattern: "v{base}-rc.*" to find all RC tags for this version.
+	pattern := fmt.Sprintf("%s-rc.*", baseVer)
+	cmd := exec.Command("git", "tag", "--list", pattern)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to list RC tags: %w", err)
+	}
+
+	tags := strings.Split(strings.TrimSpace(string(out)), "\n")
+	highestRC := 0
+	foundAny := false
+
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		// Parse RC number from tag like "v0.0.1-rc.5" → 5
+		rcStr := tag[strings.LastIndex(tag, "-rc.")+4:]
+		var rcNum int
+		if _, err := fmt.Sscanf(rcStr, "%d", &rcNum); err == nil {
+			foundAny = true
+			if rcNum > highestRC {
+				highestRC = rcNum
+			}
+		}
+	}
+
+	if !foundAny {
+		return "-rc.1", nil // No existing RC tags — start at rc.1 for non-master PRs.
+	}
+
+	return fmt.Sprintf("-rc.%d", highestRC+1), nil
 }
 
 // isGreaterVersion compares two SemVer structs and returns true if a > b.

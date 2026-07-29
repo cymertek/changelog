@@ -159,11 +159,10 @@ type LogCmd struct { //nolint:revive,golint // required by cobra CLI structure
 }
 
 // BumpCmd bumps VERSION.txt using a bump label from env vars or CI MR labels.
-// Accepts optional positional arg for bump level (major|minor|patch|rc).
-// --level flag is kept as an alias for backward compatibility with abc.
 type BumpCmd struct { //nolint:revive,golint // required by cobra CLI structure
-	Level       string `positional:"true" short:"l" long:"level" optional:"true" description:"Bump level: major, minor, patch, or rc"`
+	Level       string `long:"level" description:"Bump level: major, minor, patch, or rc"`
 	VersionFile string `long:"version-file" default:"VERSION.txt" description:"Path to VERSION.txt"`
+	Rc          bool   `long:"rc" description:"Append -rc.N suffix for non-master PR pipelines (auto-detects existing RC tags)"`
 }
 
 // GetLevel returns the bump level.

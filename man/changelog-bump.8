@@ -2,8 +2,7 @@
 .SH NAME
 changelog bump \- bump VERSION.txt using environment variables or CI merge request labels
 .SH SYNOPSIS
-.B changelog bump
-[\fIlevel\fR] [\fIoptions\fR]
+.B changelog bump [\fIoptions\fR]
 .SH DESCRIPTION
 .PP
 The \fBbump\fR command automatically updates the project's VERSION.txt file based on bump level indicators from environment variables or CI/CD pipeline labels. It supports semantic versioning (major, minor, patch) and release candidate (rc) versions.
@@ -15,18 +14,12 @@ This is designed for integration with continuous integration systems where merge
 Show help message and exit.
 
 .TP
-.B Positional Arguments:
-.TP
-\fIlevel\fR
-Optional bump level specification. Can be provided as positional argument or via environment variables/labels.
-
-Valid levels: major, minor, patch, rc
-
-.TP
 .B Optional Flags:
 .TP
-\fB\-l\fR, \fB\-\-level\fR=\fILEVEL\fR
-Alias for the positional bump level argument. Allows explicit level specification regardless of environment variables.
+\fB\-\-level\fR=\fILEVEL\fR
+Explicit bump level specification. Overrides any environment variables or labels.
+
+Valid levels: major, minor, patch, rc
 
 .TP
 \fB\-\-version-file\fR=\fIPATH\fR
@@ -115,7 +108,7 @@ Explicitly specify major version bump:
 .TP
 Update custom version file location:
 .nf
-    changelog bump minor --version-file src/VERSION.txt
+    changelog bump --level minor --version-file src/VERSION.txt
 .fi
 
 .TP
