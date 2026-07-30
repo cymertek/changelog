@@ -122,6 +122,7 @@ jobs:
             changelog-darwin-arm64
             changelog-windows-amd64.exe
             checksums.txt
+            VERSION.txt  # Include version file so release job can read it
           retention-days: 7
 
   release:
@@ -135,43 +136,73 @@ jobs:
         with:
           name: changelog-${{ needs.bump-and-build.outputs.next_version }}
 
+      - name: Verify VERSION.txt exists after artifact download
+        run: |
+          if [ ! -f VERSION.txt ]; then
+            echo "ERROR: VERSION.txt not found in downloaded artifacts." >&2
+            exit 1
+          fi
+          echo "VERSION.txt found: $(cat VERSION.txt)"
+
       - name: Read version for notes
         id: read-version
         run: |
           echo "version=$(cat VERSION.txt | tr -d '[:space:]')" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release (draft)
-        id: gh_release
+      - name: Create GitHub Release (draft) using API
         run: |
-          tag="v${{ steps.read-version.outputs.version }}"
-          body=$(cat <<EOF
-          ## changelog ${{ steps.read-version.outputs.version }}
+          VERSION=$(cat VERSION.txt | tr -d '[:space:]')
+          TAG="v${VERSION}"
 
-          [Full changelog](CHANGELOG.md)
+          # Build release body from template
+          BODY="## changelog ${VERSION}
 
-          ### Binaries
+[Full changelog](CHANGELOG.md)
 
-          | Platform | Architecture | File |
-          |---|---|---|
-          | Linux | amd64 | \`changelog-linux-amd64\` |
-          | Linux | arm64 | \`changelog-linux-arm64\` |
-          | macOS | amd64 (Intel) | \`changelog-darwin-amd64\` |
-          | macOS | arm64 (Apple Silicon) | \`changelog-darwin-arm64\` |
-          | Windows | amd64 | \`changelog-windows-amd64.exe\` |
+### Binaries
 
-          SHA256 checksums are in \`checksums.txt\`.
-          EOF
-          )
+| Platform | Architecture | File |
+|---|---|---|
+| Linux | amd64 | \`changelog-linux-amd64\` |
+| Linux | arm64 | \`changelog-linux-arm64\` |
+| macOS | amd64 (Intel) | \`changelog-darwin-amd64\` |
+| macOS | arm64 (Apple Silicon) | \`changelog-darwin-arm64\` |
+| Windows | amd64 | \`changelog-windows-amd64.exe\` |
 
-          gh release create "$tag" \
-            --title "changelog ${{ steps.read-version.outputs.version }}" \
-            --notes "${body}" \
-            --draft \
-            changelog-linux-amd64 \
-            changelog-linux-arm64 \
-            changelog-darwin-amd64 \
-            changelog-darwin-arm64 \
-            changelog-windows-amd64.exe \
-            checksums.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+SHA256 checksums are in \`checksums.txt\`."
+
+          # Create draft release via API
+          RESPONSE=$(curl -s -X POST \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"tag_name\": \"$TAG\",
+              \"name\": \"changelog $VERSION\",
+              \"body\": $(echo "$BODY" | jq -Rs .),
+              \"draft\": true,
+              \"prerelease\": false
+            }")
+
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "ERROR: Failed to create release." >&2
+            echo "Response: $RESPONSE" >&2
+            exit 1
+          fi
+
+          # Upload assets
+          for FILE in changelog-linux-amd64 changelog-linux-arm64 changelog-darwin-amd64 changelog-darwin-arm64 changelog-windows-amd64.exe checksums.txt; do
+            if [ -f "$FILE" ]; then
+              curl -s -X POST \
+                "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$(basename $FILE)" \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                --data-binary @"$FILE" >/dev/null 2>&1 || {
+                  echo "WARNING: Failed to upload asset $FILE" >&2
+                }
+            else
+              echo "WARNING: Asset not found: $FILE, skipping upload." >&2
+            fi
+          done
+
+          echo "Release created successfully with ID: $RELEASE_ID"
