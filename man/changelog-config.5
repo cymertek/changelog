@@ -1,0 +1,203 @@
+.TH CHANGELOG-CONFIG 5 "July 2026" "changelog 1.0.0" "File Formats"
+.SH NAME
+changelog config \- changelog.yaml configuration file format and options reference
+.SH DESCRIPTION
+.PP
+The changelog.yaml configuration file controls how fragments are processed, sorted, and rendered into release notes. It defines project metadata, section customization, output formatting, and plugin documentation settings.
+
+This file is created by \fBchangelog init\fR with sensible defaults that can be customized for specific project needs. See \fBchangelog-init(8)\fR for initialization details.
+.SH FILE LOCATION
+.PP
+By default, configuration is stored at:
+.IP \(bu 2
+\fIchangelogs/config.yaml\fR in the project root
+
+.TP
+.B Alternative Locations:
+.RS 4
+.IP \(bu 2
+Custom paths via \fB\-\-dir\fR flag on individual commands
+.IP \(bu 2
+Legacy locations: \fI.changelogs/config.yaml\fR or \fI.changelog/config.yaml\fR (auto-detected)
+.RE
+
+.SH CONFIGURATION OPTIONS
+.PP
+All configuration fields with their defaults and descriptions:
+
+.TP
+.B Required Fields:
+.RS 4
+.IP \(bu 2
+\fBtitle:\fR Project title displayed in changelog headers. Example: "MyAwesomeProject"
+.RE
+
+.TP
+.B Versioning Configuration:
+.RS 4
+.IP \(bu 2
+\fBversion_pattern:\fR Regex pattern for validating version strings (default: "^\\d+\\.\\d+\\.\\d+$")
+.IP \(bu 2
+\fBus_semantic_versioning:\fR Enforce semantic versioning rules (default: false)
+.RE
+
+.TP
+.B Fragment Processing:
+.RS 4
+.IP \(bu 2
+\fBkeep_fragments:\fR Retain fragments after release processing (default: false, archives them)
+.IP \(bu 2
+\fBignore_other_fragment_extensions:\fR Only process .md/.yml files, ignore others (default: true)
+.IP \(bu 2
+\fBsanitize_changelog:\fR Run body through markdown formatter for consistency (default: true)
+.RE
+
+.TP
+.B Section Customization:
+.RS 4
+.IP \(bu 2
+\fBsections:\fR Map of internal category keys to display titles. Example: {"bugfixes": "Bug Fixes"}
+.IP \(bu 2
+\fBprelude_section_title:\fR Title for unreleased/pre-release section (default: "## [Unreleased]")
+.IP \(bu 2
+\fBtrivial_section_name:\fR Name for trivial/unchanged section header (default: "Trivial")
+.RE
+
+.TP
+.B Output Formatting:
+.RS 4
+.IP \(bu 2
+\fBoutput_formats:\fR List of output formats to generate (default: ["markdown"])
+.IP \(bu 2
+\fBchanges_format:\fR How to render fragment bodies ("raw", "markdown", etc.)
+.IP \(bu 2
+\fBchangelog_sort:\fR Field to sort entries by ("none", "issue", "date") (default: "none")
+.RE
+
+.TP
+.B Plugin Documentation (for Ansible collections):
+.RS 4
+.IP \(bu 2
+\fBusFQCN:\fR Use fully qualified collection names in output (default: false)
+.IP \(bu 2
+\fBadd_plugin_period:\fR Add period after plugin names in documentation (default: false)
+.IP \(bu 2
+\fBflatmap:\fR Use short plugin names instead of FQCN (nil=unset, true=enabled, false=disabled)
+.RE
+
+.TP
+.B Archive and Metadata:
+.RS 4
+.IP \(bu 2
+\fBarchive_path_template:\fR Destination directory for archived fragments (default: ".changelogs/archive")
+.IP \(bu 2
+\fBchanges_file:\fR Machine-readable metadata file path (default: ".changes.yaml")
+.IP \(bu 2
+\fBrelease_tag_re:\fR Regex matching stable release tags (default: "((?:[\\d.ab]|rc)+)")
+.RE
+
+.SH EXAMPLE CONFIGURATION
+.PP
+Complete example with common customizations:
+
+.nf
+    title: "My Awesome Project"
+    version_pattern: "^v\\d+\\.\\d+\\.\\d+$"
+    keep_fragments: false
+    sanitize_changelog: true
+
+    sections:
+      bugfixes: "Bug Fixes & Improvements"
+      major_changes: "Major New Features"
+      minor_changes: "Minor Enhancements"
+      breaking_changes: "Breaking Changes / Migration Guide"
+
+    output_formats:
+      - markdown
+
+    changes_format: raw
+    changelog_sort: issue
+
+    archive_path_template: ".changelogs/archive/{{version}}"
+    changes_file: ".changes.yaml"
+.fi
+
+.TP
+.B Collection-Specific Configuration:
+.nf
+    title: "My Ansible Collection"
+    is_collection: true
+    use_fqcn: true
+    add_plugin_period: true
+
+    sections:
+      bugfixes: "Bug Fixes"
+      minor_changes: "Plugin Enhancements"
+      breaking_changes: "Breaking Changes / Plugin Migration Guide"
+.fi
+
+.SH SECTION PRIORITY AND SORTING
+.PP
+Fragments are rendered in this priority order (highest first):
+
+.RS 4
+.IP \(bu 2
+1. Breaking Changes / Porting Guide
+.IP \(bu 2
+2. Major Changes
+.IP \(bu 2
+3. Deprecated Features
+.IP \(bu 2
+4. Removed Features
+.IP \(bu 2
+5. Bugfixes
+.IP \(bu 2
+6. Security Fixes
+.IP \(bu 2
+7. Minor Changes
+.IP \(bu 2
+8. Known Issues
+.RE
+
+.TP
+.B Custom Sorting:
+.RS 4
+.IP \(bu 2
+\fBchangelog_sort: issue\fR \- Sort by issue ID numerically/alphabetically
+.IP \(bu 2
+\fBchangelog_sort: date\fR \- Sort by fragment date field chronologically
+.IP \(bu 2
+\fBchangelog_sort: none\fR (default) \- Maintain natural file order in directory
+.RE
+
+.SH NOTES DIRECTORIES
+.PP
+Additional fragment directories can be configured for organizing changes by subsystem or team:
+
+.TP
+.B Configuration:
+.nf
+    notes_dirs:
+      - changelogs/fragments/core
+      - changelogs/notes/community
+      - plugins/legacy_changes
+.fi
+
+.TP
+.B Behavior:
+.RS 4
+.IP \(bu 2
+Later directories override earlier ones for same-named fragments
+.IP \(bu 2
+All notes directories are merged during release/generate operations
+.IP \(bu 2
+Can be specified dynamically via \fB\-\-notes-dir\fR command flags
+.RE
+
+.SH SEE ALSO
+.TP
+\fBchangelog(8)\fR \- Main changelog command with configuration overview
+.TP
+\fBchangelog-init(8)\fR \- Initialize project with default configuration
+.TP
+\fBchangelog-reformat(8)\fR \- Reformat and normalize configuration files

@@ -1,0 +1,147 @@
+.TH CHANGELOG-ADD 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog add \- create a new changelog fragment file describing a single change
+.SH SYNOPSIS
+.B changelog add
+[\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBadd\fR command creates a new YAML fragment file in the fragments directory.
+Each fragment describes one discrete change (bugfix, enhancement, deprecation, etc.)
+with metadata including issue reference, category, date, and human-readable title.
+
+Fragments are the primary unit of changelog content. They accumulate over time as
+developers add entries describing their work, then get aggregated into release notes
+by \fBchangelog release\fR or \fBchangelog generate\fR.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+.B Required:
+.TP
+\fB\-i\fR, \fB\-\-issue\fR=\fIID\fR
+Issue or JIRA ID associated with this change (e.g., "PG\-001", "BUG\-12345").
+.PP
+This becomes the fragment filename and is used for deduplication. Must be unique
+within the fragments directory.
+
+.TP
+\fB\-T\fR, \fB\-\-text\fR=\fITEXT\fR
+Body text content of the fragment in markdown format.
+.PP
+Supports multi-line content with proper YAML quoting. Use double quotes for strings
+containing colons to avoid PyYAML parsing issues.
+
+.TP
+\fB\-c\fR, \fB\-\-category\fR=\fICATEGORY\fR
+Category of change being documented. Determines which section the fragment appears in.
+.PP
+Valid categories:
+.RS 4
+.IP \(bu 2
+\fIbugfixes\fR (default) \- Bug fixes and corrections
+.IP \(bu 2
+\fImajor_changes\fR \- Major new features or breaking changes
+.IP \(bu 2
+\fiminor_changes\fR \- Minor improvements and enhancements
+.IP \(bu 2
+\fIbreaking_changes\fR \- Breaking changes requiring migration guides
+.IP \(bu 2
+\fIdeprecated_features\fR \- Features marked for removal in future releases
+.IP \(bu 2
+\fIremoved_features\fR \- Previously deprecated features now removed
+.IP \(bu 2
+\fIsecurity_fixes\fR \- Security vulnerability fixes
+.IP \(bu 2
+\fIknown_issues\fR \- Documented known issues or workarounds
+.RE
+
+.TP
+.B Optional:
+.TP
+\fB\-t\fR, \fB\-\-title\fR=\fITITLE\fR
+Human-readable title for the fragment. Appears in changelog output above the body text.
+If omitted, defaults to "Fragment #\fI<issue>\fR".
+
+.TP
+\fB\-d\fR, \fB\-\-dir\fR=\fIPATH\fR
+Output directory for the fragment file. Defaults to \fIchangelogs/fragments/\fR in the current project root.
+.PP
+Useful for adding fragments to alternative fragment directories or notes directories.
+
+.TP
+\fB\-f\fR, \fB\-\-file\fR=\fIFILE\fR
+Read fragment body text from an existing file instead of using \fB\-\-text\fR.
+.PP
+Useful when the fragment content is long or already written to a temporary file.
+
+.TP
+\fB\-\-date\fR=\fIYYYY\-MM\-DD\fR
+Date for this change in YYYY-MM-DD format. Defaults to today's date if not specified.
+.PP
+Used for sorting and chronological ordering of fragments within releases.
+.SH FRAGMENT FORMAT
+.PP
+Fragments are stored as YAML files with the following structure:
+.IP \(bu 2
+Filename: \fI<issue>-<category>.yml\fR (e.g., "PG-001-bugfixes.yml")
+.IP \(bu 2
+Content: YAML with category key mapping to an array of change entries
+
+Example fragment file (\fIPG\-001\-bugfixes.yml\fR):
+.nf
+    bugfixes:
+      - text: |
+          Fixed crash when processing large files.
+        title: "Stability improvement"
+.fi
+.PP
+The tool automatically handles proper YAML quoting and formatting to ensure fragments
+parse correctly regardless of special characters in the content.
+.SH EXAMPLES
+.TP
+Add a simple bugfix fragment (uses defaults):
+.nf
+    changelog add \\
+        --issue PG-001 \\
+        --text "Fixed crash when processing large files"
+.fi
+
+.TP
+Add an enhancement with custom title and date:
+.nf
+    changelog add \\
+        --category minor_changes \\
+        --issue IMP-456 \\
+        --title "Added support for parallel processing" \\
+        --text "Implemented multi-threaded file processing that improves performance by 10x." \\
+        --date 2026-07-15
+.fi
+
+.TP
+Add a breaking change with detailed description:
+.nf
+    changelog add \\
+        --category breaking_changes \\
+        --issue API-789 \\
+        --title "Removed deprecated --legacy flag" \\
+        --text "The --legacy flag was removed in v1.0. Use the new --modern equivalent instead."
+.fi
+
+.TP
+Add fragment from an existing file:
+.nf
+    changelog add \\
+        --issue DOC-123 \\
+        --file /tmp/fragment-body.md \\
+        --title "Documentation updates"
+.fi
+.SH SEE ALSO
+.TP
+\fBchangelog-lint(8)\fR \- Validate fragment files for correctness
+.TP
+\fBchangelog-release(8)\fR \- Generate release notes from accumulated fragments
+.TP
+\fBchangelog-config(5)\fR \- Configuration file reference

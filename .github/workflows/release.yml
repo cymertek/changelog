@@ -1,0 +1,212 @@
+# CI/CD pipeline for changelog.
+# Single-stage build: bump version, update main.go, then cross-compile all architectures.
+# Uses system Go and host git — no docker needed.
+
+name: build-and-release
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    labels: ['bump-*']
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Force Node.js 24 for JS actions (GitHub deprecation)
+
+jobs:
+  bump-and-build:
+    name: Bump version and build all architectures
+    runs-on: ubuntu-latest
+    outputs:
+      next_version: ${{ steps.bump.outputs.next_version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set git identity for tag creation
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.event.pull_request.user.email || github.actor }}@users.noreply.github.com"
+
+      - name: Parse PR labels for bump level
+        id: parse-labels
+        run: |
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+          BUMP_LEVEL=$(echo "$LABELS" | grep -oE 'bump-(major|minor|patch)' | head -1 | sed 's/bump-//')
+
+          if [ -z "$BUMP_LEVEL" ]; then
+            echo "ERROR: No bump-* label found on PR." >&2
+            exit 1
+          fi
+
+          echo "BUMP_LEVEL=$BUMP_LEVEL" >> $GITHUB_ENV
+
+      - name: Build test binary and bump version
+        id: bump
+        run: |
+          # Build test binary using system Go (no docker needed)
+          go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64 .
+
+          if [ ! -f changelog-linux-amd64 ]; then
+            echo "ERROR: Binary not created" >&2
+            exit 1
+          fi
+
+          # Run bump command (uses host git with proper identity we set above)
+          ./changelog-linux-amd64 bump --level "${BUMP_LEVEL}" || {
+            echo "ERROR: bump failed." >&2
+            exit 1
+          }
+
+          # Read VERSION.txt and export as step output
+          NEXT_VERSION=$(cat VERSION.txt | tr -d '[:space:]')
+          if [ -z "$NEXT_VERSION" ]; then
+            echo "ERROR: VERSION.txt is empty after bump." >&2
+            exit 1
+          fi
+          echo "Next version: ${NEXT_VERSION}"
+          echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Update main.go Version variable with sed
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.next_version }}"
+          echo "Updating main.go Version variable to: ${NEW_VERSION}"
+
+          BARE_VERSION="${NEW_VERSION#v}"
+
+          if [ -f main.go ]; then
+            CURRENT_MAIN_GO_VERSION=$(grep '^var Version' main.go | sed 's/.*"\(.*\)".*/\1/' || echo "")
+
+            if [ -n "$CURRENT_MAIN_GO_VERSION" ]; then
+              sed -i "s|var Version = \".*\"|var Version = \"${BARE_VERSION}\"|" main.go
+              echo "Updated main.go from ${CURRENT_MAIN_GO_VERSION} to ${BARE_VERSION}"
+              grep "^var Version" main.go || true
+            else
+              echo "Could not find 'var Version' in main.go; skipping update"
+            fi
+          else
+            echo "main.go not found; skipping version update"
+          fi
+
+      - name: Build all architectures (cross-compile)
+        run: |
+          VERSION=$(cat VERSION.txt)
+
+          # Linux amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-linux-amd64 .
+
+          # Linux arm64
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-linux-arm64 .
+
+          # macOS amd64 (Intel)
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-darwin-amd64 .
+
+          # macOS arm64 (Apple Silicon)
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-darwin-arm64 .
+
+          # Windows amd64
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-windows-amd64.exe .
+
+      - name: Generate SHA256 checksums
+        run: |
+          ls -la changelog-* 2>/dev/null || true
+          sha256sum changelog-* > checksums.txt 2>/dev/null || echo "No binaries to hash" > checksums.txt
+          cat checksums.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: changelog-${{ steps.bump.outputs.next_version }}
+          path: |
+            changelog-linux-amd64
+            changelog-linux-arm64
+            changelog-darwin-amd64
+            changelog-darwin-arm64
+            changelog-windows-amd64.exe
+            checksums.txt
+            VERSION.txt
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: bump-and-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: changelog-${{ needs.bump-and-build.outputs.next_version }}
+
+      - name: Verify VERSION.txt exists after artifact download
+        run: |
+          echo "=== Files in current directory (recursive) ==="
+          find . -type f 2>/dev/null || true
+
+          if [ ! -f VERSION.txt ]; then
+            echo "ERROR: VERSION.txt not found." >&2
+            exit 1
+          fi
+          echo "VERSION.txt found: $(cat VERSION.txt)"
+
+      - name: Create GitHub Release (draft) using API
+        run: |
+          VERSION=$(cat VERSION.txt | tr -d '[:space:]')
+          TAG="v${VERSION}"
+
+          # Build release body from template using PLACEHOLDER substitution to avoid backtick escaping issues in YAML
+          BODY="## changelog ${VERSION}
+
+          [Full changelog](CHANGELOG.md)
+          
+          ### Binaries
+          
+          | Platform | Architecture | File |
+          |---|---|---|
+          | Linux | amd64 | BIN_LINUX_AMD64 |
+          | Linux | arm64 | BIN_LINUX_ARM64 |
+          | macOS | amd64 (Intel) | BIN_DARWIN_AMD64 |
+          | macOS | arm64 (Apple Silicon) | BIN_DARWIN_ARM64 |
+          | Windows | amd64 | BIN_WINDOWS_AMD64
+          
+          SHA256 checksums are in CHECKSUMS_FILE."
+          BODY="${BODY//BIN_LINUX_AMD64/\`changelog-linux-amd64\`}"
+          BODY="${BODY//BIN_LINUX_ARM64/\`changelog-linux-arm64\`}"
+          BODY="${BODY//BIN_DARWIN_AMD64/\`changelog-darwin-amd64\`}"
+          BODY="${BODY//BIN_DARWIN_ARM64/\`changelog-darwin-arm64\`}"
+          BODY="${BODY//BIN_WINDOWS_AMD64/\`changelog-windows-amd64.exe\`}"
+          BODY="${BODY//CHECKSUMS_FILE/\`checksums.txt\`}"
+
+          # Create draft release via API
+          RESPONSE=$(curl -s -X POST \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"tag_name\": \"$TAG\",
+              \"name\": \"changelog $VERSION\",
+              \"body\": $(echo "$BODY" | jq -Rs .),
+              \"draft\": true,
+              \"prerelease\": false
+            }")
+
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
+            echo "ERROR: Failed to create release." >&2
+            echo "Response: $RESPONSE" >&2
+            exit 1
+          fi
+
+          # Upload assets
+          for FILE in changelog-linux-amd64 changelog-linux-arm64 changelog-darwin-amd64 changelog-darwin-arm64 changelog-windows-amd64.exe checksums.txt; do
+            if [ -f "$FILE" ]; then
+              curl -s -X POST \
+                "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$(basename $FILE)" \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                --data-binary @"$FILE" >/dev/null 2>&1 || {
+                  echo "WARNING: Failed to upload asset $FILE" >&2
+                }
+            else
+              echo "WARNING: Asset not found: $FILE, skipping upload." >&2
+            fi
+          done
+
+          echo "Release created successfully with ID: $RELEASE_ID"

@@ -1,0 +1,125 @@
+.TH CHANGELOG-PREVIEW 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog preview \- render fragment changes as colored markdown output for terminal display
+.SH SYNOPSIS
+.B changelog preview
+[\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBpreview\fR command renders accumulated fragment changes as formatted, colorized markdown suitable for terminal viewing. It provides a visual representation of what release notes will look like without actually generating files or performing archiving operations.
+
+This is useful for reviewing changes before releasing, checking formatting consistency, and getting a quick overview of recent work across multiple fragments.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+\fB-d\fR, \fB\-\-dir\fR=\fIPATH\fR
+Fragment directory to render. Defaults to "changelogs/fragments" in the current project root. Can specify multiple directories using separate -d flags or comma-separated paths.
+
+.TP
+\fB-n\fR, \fB\-\-notes-dir\fR=\fIDIR\fR
+Additional fragment directories to merge into the preview output. Useful for viewing fragments organized by subsystem or team alongside main fragments.
+.SH OUTPUT FORMATTING
+.PP
+The preview command applies ANSI color codes for enhanced terminal readability:
+
+.TP
+.B Header Styling:
+.RS 4
+.IP \(bu 2
+\fIH1 headers (## [Version])\fR → Bold yellow
+.IP \(bu 2
+\fIH2 headers (### Category)\fR → Bold cyan
+.IP \(bu 2
+\fIH3+ headers\fR → Bold white
+.RE
+
+.TP
+.B Link Styling:
+.RS 4
+.IP \(bu 2
+\fIMarkdown links [text](url)\fR → Cyan underline
+.IP \(bu 2
+\fIBold link text **text**\fR → Bright green bold
+.RE
+
+.TP
+.B Bullet List Markers:
+.RS 4
+.IP \(bu 2
+\fI- or * list items\fR → Yellow bullet marker with indented content
+.IP \(bu 2
+\fINested lists\fR → Hierarchical indentation preserved
+.RE
+
+.TP
+.B Code Blocks:
+.RS 4
+.IP \(bu 2
+\fIFenced code blocks (```) \fR→ Dim gray background
+.IP \(bu 2
+\fIInline code (`text`)\fR → Highlighted with backticks preserved
+.RE
+
+.SH TERMINAL COMPATIBILITY
+.PP
+The preview command automatically detects terminal capabilities:
+
+.RS 4
+.IP \(bu 2
+\fITty detection:\fR Checks if stdout is an interactive terminal using \fBisatty()\fR
+.IP \(bu 2
+\fIColor support:\fR Disables ANSI codes when piping to files or non-terminal destinations
+.IP \(bu 2
+\fIBackground processing:\fR Safe for use in CI/CD pipelines without color interference
+.RE
+
+.TP
+.B When colors are disabled:
+.RS 4
+.IP \(bu 2
+Output is plain markdown suitable for file redirection
+.IP \(bu 2
+No ANSI escape sequences in piped output
+.IP \(bu 2
+Maintains proper formatting and structure
+.RE
+
+.SH EXAMPLES
+.TP
+Preview current fragments with default settings:
+.nf
+    changelog preview
+.fi
+
+.TP
+View fragments from multiple directories:
+.nf
+    changelog preview \\
+        -d changelogs/fragments/core \\
+        -n changelogs/notes/community \\
+        -n changelogs/fragments/plugins
+.fi
+
+.TP
+Pipe output to file for review:
+.nf
+    changelog preview > /tmp/changelog-preview.md
+    less /tmp/changelog-preview.md
+.fi
+
+.TP
+Use with grep for specific changes:
+.nf
+    changelog preview | grep -i "bugfix\|enhancement"
+.fi
+
+.SH SEE ALSO
+.TP
+\fBchangelog-release(8)\fR \- Generate actual release notes (preview shows what will be created)
+.TP
+\fBchangelog-log(8)\fR \- Display fragments in git-log style format
+.TP
+\fBless(1)\fR, \fBmore(1)\fR \- Terminal paging utilities for viewing large outputs

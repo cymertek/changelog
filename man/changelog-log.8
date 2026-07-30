@@ -1,0 +1,131 @@
+.TH CHANGELOG-LOG 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog log \- display changelog fragments in git-log style format with pagination
+.SH SYNOPSIS
+.B changelog log
+[\fIoptions\fR]
+.SH DESCRIPTION
+.PP
+The \fBlog\fR command displays fragment files in a structured, git-log-style format suitable for reviewing accumulated changes. It provides interactive pagination support and configurable page sizes for navigating large numbers of fragments.
+
+This is useful for previewing what will appear in release notes before generating them, reviewing recent changes, or auditing fragment content across multiple directories.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+\fB\-d\fR, \fB\-\-dir\fR=\fIPATH\fR
+Fragment directory to display. Defaults to "changelogs/fragments" in the current project root.
+.PP
+Can specify multiple directories using separate -d flags or comma-separated paths.
+
+.TP
+\fB\-\-page\-size\fR=\fIN\fR
+Number of entries per page when displaying output. Defaults to 10 if not specified. Set to -1 for unlimited (no pagination).
+
+.TP
+\fB\-i\fR, \fB\-\-interactive\fR
+Enable interactive pagination mode with keypress navigation:
+.RS 4
+.IP \(bu 2
+\fBSpace\fR or \fBf\fR \- Next page
+.IP \(bu 2
+\bBb\fR or \fBSpace\fR \- Previous page
+.IP \(bu 2
+\fBq\fR or \fBCtrl+C\fR \- Quit
+.IP \(bu 2
+\fB<\fR or \fBH\fR \- First page
+.IP \(bu 2
+\fB>\fR or \fBL\fR \- Last page
+.RE
+
+.TP
+\fB\-n\fR, \fB\-\-notes-dir\fR=\fIDIR\fR
+Additional fragment directories to merge into the display. Can be specified multiple times for multiple notes directories. Useful for viewing fragments organized by subsystem or team.
+.SH OUTPUT FORMAT
+.PP
+The log command displays fragments in a structured format showing:
+
+.TP
+.B Fragment Header:
+.nf
+    --- [Issue ID] Category (YYYY-MM-DD) ---
+.fi
+
+.TP
+.B Fragment Content:
+.nf
+    Title: Human-readable title for the fragment
+
+    Body:
+    Fragment body text content here...
+
+    Metadata:
+      author: developer@example.com  (if present)
+      issue_type: bugfix              (if categorized)
+.fi
+
+.TP
+.B Pagination Indicator:
+.nf
+    Page X of Y (Press space for next, q to quit)
+.fi
+.SH FRAGMENT SORTING
+.PP
+Fragments are displayed in chronological order (newest first), matching the order they would appear in release notes. Within each day, fragments are sorted by category priority:
+
+.RS 4
+.IP \(bu 2
+1. Breaking Changes / Porting Guide
+.IP \(bu 2
+2. Major Changes
+.IP \(bu 2
+3. Deprecated Features
+.IP \(bu 2
+4. Removed Features
+.IP \(bu 2
+5. Bugfixes
+.IP \(bu 2
+6. Security Fixes
+.IP \(bu 2
+7. Minor Changes
+.IP \(bu 2
+8. Known Issues
+.RE
+
+.SH EXAMPLES
+.TP
+Display fragments with default pagination:
+.nf
+    changelog log
+.fi
+
+.TP
+View all fragments without pagination (useful for piping):
+.nf
+    changelog log --page-size -1 | less
+.fi
+
+.TP
+Interactive browsing with custom page size:
+.nf
+    changelog log --interactive --page-size 20
+.fi
+
+.TP
+Display fragments from multiple directories:
+.nf
+    changelog log \\
+        -d changelogs/fragments/core \\
+        -d changelogs/notes/community \\
+        --interactive
+.fi
+
+.SH SEE ALSO
+.TP
+\fBchangelog-release(8)\fR \- Generate release notes from fragments (uses same sorting)
+.TP
+\fBchangelog-add(8)\fR \- Create new fragment files
+.TP
+\fBgit-log(1)\fR \- Similar git log command with comparable pagination features

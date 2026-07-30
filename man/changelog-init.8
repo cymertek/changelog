@@ -1,0 +1,78 @@
+.TH CHANGELOG-INIT 8 "July 2026" "changelog 1.0.0" "System Administration Commands"
+.SH NAME
+changelog init \- initialize changelog infrastructure for a project
+.SH SYNOPSIS
+.B changelog init
+[\fIoptions\fR] [\fIproject\-root\fR]
+.SH DESCRIPTION
+.PP
+The \fBinit\fR command bootstraps a new changelog directory structure with
+default configuration. It creates the standard layout expected by other
+changelog commands and writes a sample config file that users can customize.
+
+After initialization, projects should have:
+.RS 4
+.IP \(bu 2
+\fIchangelogs/config.yaml\fR \- Configuration file with project settings
+.IP \(bu 2
+\fIchangelogs/fragments/\fR \- Directory for fragment files
+.RE
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Increase verbosity of output messages.
+
+.TP
+\fB\-\-is\-other\-project\fR
+Mark this as a wrapper project rather than the primary upstream. When set,
+the generated config will include settings appropriate for projects that
+consume changelogs from dependencies (e.g., Ansible collections wrapping
+upstream plugins).
+
+Defaults to \fIfalse\fR unless explicitly specified.
+.SH POSITIONAL ARGUMENTS
+.TP
+\fIproject\-root\fR
+Path to the project root directory where changelog infrastructure should be created.
+.PP
+If not provided, defaults to the current working directory (\fB.\fR). The command will
+create a \fIchangelogs/\fR subdirectory structure within this path.
+.SH EXAMPLES
+.TP
+Initialize in current directory:
+.nf
+    changelog init
+.fi
+
+.TP
+Initialize in a specific project directory:
+.nf
+    changelog init /path/to/myproject
+.fi
+
+.TP
+Initialize as an "other" (wrapper) project:
+.nf
+    changelog init --is-other-project mycollection
+.fi
+.SH OUTPUT
+.PP
+On success, the command prints confirmation messages showing which files were created:
+.IP \(bu 2
+\fI[changelogs/config.yaml]\fR \- Configuration file with defaults
+.IP \(bu 2
+\fI[changelogs/fragments/\fR] \- Empty fragments directory ready for use
+.PP
+The generated config includes sensible defaults that can be customized by editing
+\fIchangelogs/config.yaml\fR directly. See \fBchangelog\-config(5)\fR for configuration options.
+.SH SEE ALSO
+.TP
+\fBchangelog-add(8)\fR \- Create new fragment files
+.TP
+\fBchangelog-release(8)\fR \- Generate release changelogs from fragments
+.TP
+\fBchangelog-config(5)\fR \- Configuration file reference
