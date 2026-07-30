@@ -138,8 +138,11 @@ jobs:
 
       - name: Verify VERSION.txt exists after artifact download
         run: |
+          echo "=== Files in current directory (recursive) ==="
+          find . -type f 2>/dev/null || true
+
           if [ ! -f VERSION.txt ]; then
-            echo "ERROR: VERSION.txt not found in downloaded artifacts." >&2
+            echo "ERROR: VERSION.txt not found." >&2
             exit 1
           fi
           echo "VERSION.txt found: $(cat VERSION.txt)"
@@ -149,7 +152,7 @@ jobs:
           VERSION=$(cat VERSION.txt | tr -d '[:space:]')
           TAG="v${VERSION}"
 
-          # Build release body from template
+          # Build release body from template using PLACEHOLDER substitution to avoid backtick escaping issues in YAML
           BODY="## changelog ${VERSION}
 
           [Full changelog](CHANGELOG.md)
@@ -158,13 +161,19 @@ jobs:
           
           | Platform | Architecture | File |
           |---|---|---|
-          | Linux | amd64 | \`changelog-linux-amd64\` |
-          | Linux | arm64 | \`changelog-linux-arm64\` |
-          | macOS | amd64 (Intel) | \`changelog-darwin-amd64\` |
-          | macOS | arm64 (Apple Silicon) | \`changelog-darwin-arm64\` |
-          | Windows | amd64 | \`changelog-windows-amd64.exe\` |
+          | Linux | amd64 | BIN_LINUX_AMD64 |
+          | Linux | arm64 | BIN_LINUX_ARM64 |
+          | macOS | amd64 (Intel) | BIN_DARWIN_AMD64 |
+          | macOS | arm64 (Apple Silicon) | BIN_DARWIN_ARM64 |
+          | Windows | amd64 | BIN_WINDOWS_AMD64
           
-          SHA256 checksums are in \`checksums.txt\`."
+          SHA256 checksums are in CHECKSUMS_FILE."
+          BODY="${BODY//BIN_LINUX_AMD64/\`changelog-linux-amd64\`}"
+          BODY="${BODY//BIN_LINUX_ARM64/\`changelog-linux-arm64\`}"
+          BODY="${BODY//BIN_DARWIN_AMD64/\`changelog-darwin-amd64\`}"
+          BODY="${BODY//BIN_DARWIN_ARM64/\`changelog-darwin-arm64\`}"
+          BODY="${BODY//BIN_WINDOWS_AMD64/\`changelog-windows-amd64.exe\`}"
+          BODY="${BODY//CHECKSUMS_FILE/\`checksums.txt\`}"
 
           # Create draft release via API
           RESPONSE=$(curl -s -X POST \
