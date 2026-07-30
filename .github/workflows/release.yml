@@ -152,19 +152,19 @@ jobs:
           # Build release body from template
           BODY="## changelog ${VERSION}
 
-[Full changelog](CHANGELOG.md)
-
-### Binaries
-
-| Platform | Architecture | File |
-|---|---|---|
-| Linux | amd64 | \`changelog-linux-amd64\` |
-| Linux | arm64 | \`changelog-linux-arm64\` |
-| macOS | amd64 (Intel) | \`changelog-darwin-amd64\` |
-| macOS | arm64 (Apple Silicon) | \`changelog-darwin-arm64\` |
-| Windows | amd64 | \`changelog-windows-amd64.exe\` |
-
-SHA256 checksums are in \`checksums.txt\`."
+          [Full changelog](CHANGELOG.md)
+          
+          ### Binaries
+          
+          | Platform | Architecture | File |
+          |---|---|---|
+          | Linux | amd64 | \`changelog-linux-amd64\` |
+          | Linux | arm64 | \`changelog-linux-arm64\` |
+          | macOS | amd64 (Intel) | \`changelog-darwin-amd64\` |
+          | macOS | arm64 (Apple Silicon) | \`changelog-darwin-arm64\` |
+          | Windows | amd64 | \`changelog-windows-amd64.exe\` |
+          
+          SHA256 checksums are in \`checksums.txt\`."
 
           # Create draft release via API
           RESPONSE=$(curl -s -X POST \
