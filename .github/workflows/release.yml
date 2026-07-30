@@ -1,6 +1,6 @@
 # CI/CD pipeline for changelog.
-# Single-stage build: bump version, update main.go, then build all architectures.
-# Git identity is set on the host so it's visible inside docker via mounted .git/.
+# Single-stage build: bump version, update main.go, then cross-compile all architectures.
+# Uses system Go and host git — no docker needed.
 
 name: build-and-release
 
@@ -10,63 +10,51 @@ on:
     labels: ['bump-*']
 
 env:
-  GO_VERSION: "1.25"
-  REGISTRY_IMAGE: golang:alpine
-  BINARY_NAME: changelog
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Force Node.js 24 for JS actions (GitHub deprecation)
 
 jobs:
   bump-and-build:
     name: Bump version and build all architectures
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-    outputs:
-      next_version: ${{ steps.bump.outputs.next_version }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5  # Node.js 24 compatible
+      - uses: actions/checkout@v5
 
-      - name: Set git user identity (visible inside docker via mounted .git/)
+      - name: Set git identity for tag creation
         run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.event.pull_request.user.email || github.actor }}@users.noreply.github.com"
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.event.pull_request.user.email || github.actor }}@users.noreply.github.com"
 
-      - name: Export bump level from PR labels (bump-major, bump-minor, bump-patch)
-        id: export-labels
+      - name: Parse PR labels for bump level
+        id: parse-labels
         run: |
           LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
           BUMP_LEVEL=$(echo "$LABELS" | grep -oE 'bump-(major|minor|patch)' | head -1 | sed 's/bump-//')
 
           if [ -z "$BUMP_LEVEL" ]; then
-            echo "ERROR: No bump-* label found on PR. Expected one of: bump-major, bump-minor, bump-patch" >&2
+            echo "ERROR: No bump-* label found on PR." >&2
             exit 1
           fi
 
-          echo "BUMP_LEVEL=$BUMP_LEVEL" >> "$GITHUB_ENV"
+          echo "BUMP_LEVEL=$BUMP_LEVEL" >> $GITHUB_ENV
 
       - name: Build test binary and bump version
         id: bump
         run: |
-          # Build + bump in one container so git identity is configured for tag creation.
-          docker run --rm \
-            -v "${{ github.workspace }}:/src" \
-            -w /src \
-            -e "BUMP_LABEL=${{ env.BUMP_LEVEL }}" \
-            golang:alpine \
-            sh -c 'umask 002 && apk add --no-cache git ca-certificates && \
-              git config --global user.name "${GITHUB_ACTOR:-changelog-bot}" && \
-              git config --global user.email "changelog-bot@users.noreply.github.com" && \
-              CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64 && \
-              ./changelog-linux-amd64 bump --level "${BUMP_LABEL}"'
+          # Build test binary using system Go (no docker needed)
+          go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64 .
 
           if [ ! -f changelog-linux-amd64 ]; then
             echo "ERROR: Binary not created" >&2
             exit 1
           fi
 
-          # Read the version we just wrote (bump command writes VERSION.txt)
+          # Run bump command (uses host git with proper identity we set above)
+          ./changelog-linux-amd64 bump --level "${BUMP_LEVEL}" || {
+            echo "ERROR: bump failed." >&2
+            exit 1
+          }
+
+          # Read VERSION.txt and export as step output
           NEXT_VERSION=$(cat VERSION.txt | tr -d '[:space:]')
           if [ -z "$NEXT_VERSION" ]; then
             echo "ERROR: VERSION.txt is empty after bump." >&2
@@ -96,28 +84,33 @@ jobs:
             echo "main.go not found; skipping version update"
           fi
 
-      - name: Build all architectures inside golang:alpine container
-        # Now that VERSION.txt and main.go have been updated, build the final binaries.
+      - name: Build all architectures (cross-compile)
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/src" \
-            -w /src \
-            ${{ env.REGISTRY_IMAGE }} \
-            sh -c 'umask 002 && apk add --no-cache git ca-certificates && \
-              CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-linux-amd64   . && \
-              CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-linux-arm64   . && \
-              CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-darwin-amd64  . && \
-              CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-darwin-arm64  . && \
-              CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-windows-amd64.exe .'
+          VERSION=$(cat VERSION.txt)
 
-      - name: Generate SHA256 checksums (ignore if files missing)
+          # Linux amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-linux-amd64 .
+
+          # Linux arm64
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-linux-arm64 .
+
+          # macOS amd64 (Intel)
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-darwin-amd64 .
+
+          # macOS arm64 (Apple Silicon)
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-darwin-arm64 .
+
+          # Windows amd64
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$VERSION" -buildvcs=false -o changelog-windows-amd64.exe .
+
+      - name: Generate SHA256 checksums
         run: |
           ls -la changelog-* 2>/dev/null || true
           sha256sum changelog-* > checksums.txt 2>/dev/null || echo "No binaries to hash" > checksums.txt
           cat checksums.txt
 
-      - name: Upload build artifacts to workflow
-        uses: actions/upload-artifact@v5  # Node.js 24 compatible
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v5
         with:
           name: changelog-${{ steps.bump.outputs.next_version }}
           path: |
@@ -134,17 +127,16 @@ jobs:
     needs: bump-and-build
     runs-on: ubuntu-latest
     permissions:
-      contents: write # required to create releases and upload assets
+      contents: write
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v5  # Node.js 24 compatible
+      - uses: actions/download-artifact@v5
         with:
           name: changelog-${{ needs.bump-and-build.outputs.next_version }}
 
-      - name: Read version for notes (same source of truth)
+      - name: Read version for notes
         id: read-version
         run: |
-          echo "version=$(cat VERSION.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat VERSION.txt | tr -d '[:space:]')" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release (draft)
         id: gh_release
@@ -168,7 +160,7 @@ jobs:
           SHA256 checksums are in \`checksums.txt\`.
           EOF
           )
-          # --draft lets the author review before publishing. Remove "--draft" to publish immediately.
+
           gh release create "$tag" \
             --title "changelog ${{ steps.read-version.outputs.version }}" \
             --notes "${body}" \
