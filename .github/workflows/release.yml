@@ -16,6 +16,8 @@ jobs:
   bump-and-build:
     name: Bump version and build all architectures
     runs-on: ubuntu-latest
+    outputs:
+      next_version: ${{ steps.bump.outputs.next_version }}
     steps:
       - uses: actions/checkout@v5
 
