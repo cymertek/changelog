@@ -75,7 +75,7 @@ jobs:
             -w /src \
             -e "BUMP_LABEL=$BUMP_LEVEL" \
             golang:alpine \
-            sh -c 'umask 002 && apk add --no-cache git ca-certificates && git config --global user.email "ci@github.com" && git config --global user.name "GitHub CI" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64'
+            sh -c 'umask 002 && apk add --no-cache git ca-certificates && git config --global user.email "${{ github.event.pull_request.user.email || github.actor }}@users.noreply.github.com" && git config --global user.name "$GITHUB_ACTOR" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64'
 
           # Verify binary was created (Go binaries are executable by default)
           if [ ! -f changelog-linux-amd64 ]; then
