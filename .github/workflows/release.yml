@@ -74,6 +74,7 @@ jobs:
             -v "${{ github.workspace }}:/src" \
             -w /src \
             -e "BUMP_LABEL=$BUMP_LEVEL" \
+            -e "GITHUB_ACTOR=${{ github.actor }}" \
             golang:alpine \
             sh -c 'umask 002 && apk add --no-cache git ca-certificates && git config --global user.email "${{ github.event.pull_request.user.email || github.actor }}@users.noreply.github.com" && git config --global user.name "$GITHUB_ACTOR" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64'
 
