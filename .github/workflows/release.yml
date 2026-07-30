@@ -122,7 +122,7 @@ jobs:
             changelog-darwin-arm64
             changelog-windows-amd64.exe
             checksums.txt
-            VERSION.txt  # Include version file so release job can read it
+            VERSION.txt
           retention-days: 7
 
   release:
