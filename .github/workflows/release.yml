@@ -144,11 +144,6 @@ jobs:
           fi
           echo "VERSION.txt found: $(cat VERSION.txt)"
 
-      - name: Read version for notes
-        id: read-version
-        run: |
-          echo "version=$(cat VERSION.txt | tr -d '[:space:]')" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release (draft) using API
         run: |
           VERSION=$(cat VERSION.txt | tr -d '[:space:]')
