@@ -1,9 +1,6 @@
 # CI/CD pipeline for changelog.
-# Two-pass build strategy:
-#   Pass 1 (version-bump): Build a test binary in golang:alpine, use it to bump VERSION.txt via `changelog bump`,
-#           then update main.go's Version variable with sed to match the new version.
-#   Pass 2 (build-all-architectures): Rebuild all architectures using the updated VERSION.txt and main.go,
-#           producing final binaries ready for release.
+# Single-stage build: bump version, update main.go, then build all architectures.
+# Git identity is set on the host so it's visible inside docker via mounted .git/.
 
 name: build-and-release
 
@@ -19,33 +16,26 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Force Node.js 24 for JS actions (GitHub deprecation)
 
 jobs:
-  version-bump:
-    name: Version bump (first pass)
+  bump-and-build:
+    name: Bump version and build all architectures
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
     outputs:
-      next_version: ${{ steps.determine-version.outputs.next_version }}
+      next_version: ${{ steps.bump.outputs.next_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5  # Node.js 24 compatible
 
-      - name: Read current version from VERSION.txt (or derive from git tags)
-        id: read-version
+      - name: Set git user identity (visible inside docker via mounted .git/)
         run: |
-          # NOTE: If VERSION.txt doesn't exist, the Go binary's `changelog bump` command
-          # will derive the latest version from git tags via its built-in latestGitTag() function.
-          # This is the correct behavior for first-time releases where no prior versions exist yet.
-          if [ -f VERSION.txt ]; then
-            echo "Using existing VERSION.txt: $(cat VERSION.txt | tr -d '[:space:]')"
-          else
-            echo "No VERSION.txt found — will derive from git tags via `changelog bump`"
-          fi
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.event.pull_request.user.email || github.actor }}@users.noreply.github.com"
 
       - name: Export bump level from PR labels (bump-major, bump-minor, bump-patch)
+        id: export-labels
         run: |
-          # Extract bump level from PR labels like "bump-minor" → "minor"
           LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
           BUMP_LEVEL=$(echo "$LABELS" | grep -oE 'bump-(major|minor|patch)' | head -1 | sed 's/bump-//')
 
@@ -54,60 +44,40 @@ jobs:
             exit 1
           fi
 
-          # Since this only runs on PRs (not master/main pushes), always append RC suffix
-          IS_MASTER=false
-
           echo "BUMP_LEVEL=$BUMP_LEVEL" >> "$GITHUB_ENV"
-          echo "IS_MASTER=$IS_MASTER" >> "$GITHUB_ENV"
-          export BUMP_LABEL="$BUMP_LEVEL"
-      # Configure git identity so tags created inside the container use a valid committer name/email
-      - name: Set git user identity (visible inside docker via mounted .git/)
+
+      - name: Build test binary and bump version
+        id: bump
         run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.event.pull_request.user.email || github.actor }}@users.noreply.github.com"
-
-      - name: Determine bump level and next version via Go binary
-        id: determine-version
-        run: |
-          # NOTE: The `changelog bump` command now handles deriving VERSION.txt from git tags
-          # when the file doesn't exist (via latestGitTag() in main.go). This is the single source
-          # of truth for version derivation — no shell-based fallback needed.
-
-          echo "Bump level determined: $BUMP_LEVEL"
-
-          # Build test binary to use for bumping (use sh, not bash — Alpine doesn't include it)
+          # Build + bump in one container so git identity is configured for tag creation.
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
             -w /src \
-            -e "BUMP_LABEL=$BUMP_LEVEL" \
+            -e "BUMP_LABEL=${{ env.BUMP_LEVEL }}" \
             golang:alpine \
-            sh -c 'umask 002 && apk add --no-cache git ca-certificates && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64'
+            sh -c 'umask 002 && apk add --no-cache git ca-certificates && \
+              git config --global user.name "${GITHUB_ACTOR:-changelog-bot}" && \
+              git config --global user.email "changelog-bot@users.noreply.github.com" && \
+              CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -buildvcs=false -o changelog-linux-amd64 && \
+              ./changelog-linux-amd64 bump --level "${BUMP_LABEL}"'
 
-          # Verify binary was created (Go binaries are executable by default)
           if [ ! -f changelog-linux-amd64 ]; then
             echo "ERROR: Binary not created" >&2
             exit 1
           fi
 
-          # Run the bump command — it will derive current version from git tags if VERSION.txt missing.
-          BUMP_ARGS="--level $BUMP_LEVEL"
-          if [ "$IS_MASTER" = "false" ]; then
-            BUMP_ARGS="$BUMP_ARGS --rc"  # Append -rc.N suffix based on existing RC tags (handled in Go)
-          fi
-
-          echo ./changelog-linux-amd64 bump $BUMP_ARGS
-          ./changelog-linux-amd64 bump $BUMP_ARGS || {
-            echo "ERROR: bump failed. Check that git tags exist or VERSION.txt is present." >&2
+          # Read the version we just wrote (bump command writes VERSION.txt)
+          NEXT_VERSION=$(cat VERSION.txt | tr -d '[:space:]')
+          if [ -z "$NEXT_VERSION" ]; then
+            echo "ERROR: VERSION.txt is empty after bump." >&2
             exit 1
-          }
+          fi
           echo "Next version: ${NEXT_VERSION}"
           echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Update main.go Version variable with sed (first pass)
-        # After `changelog bump` populated VERSION.txt, use sed to update the hardcoded version in main.go
-        # so that future builds pick up the correct version without ldflags.
+      - name: Update main.go Version variable with sed
         run: |
-          NEW_VERSION="${{ steps.determine-version.outputs.next_version }}"
+          NEW_VERSION="${{ steps.bump.outputs.next_version }}"
           echo "Updating main.go Version variable to: ${NEW_VERSION}"
 
           BARE_VERSION="${NEW_VERSION#v}"
@@ -126,66 +96,19 @@ jobs:
             echo "main.go not found; skipping version update"
           fi
 
-      - name: Commit updated files (VERSION.txt, main.go)
-        # Create a commit with the new version so it's tracked in git history.
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add VERSION.txt main.go
-
-          if ! git diff --cached --quiet; then
-            COMMIT_MSG="chore(release): bump to ${{ steps.determine-version.outputs.next_version }}"
-            git commit -m "$COMMIT_MSG"
-            echo "Committed version update: ${COMMIT_MSG}"
-
-            # Push back to update the tag reference (if needed)
-            git push origin HEAD:main --force-with-lease || {
-              echo "Push failed; creating new commit instead"
-              git revert HEAD --no-edit 2>/dev/null || true
-            }
-          else
-            echo "No changes to commit (VERSION.txt and main.go already up-to-date)"
-          fi
-
-      - name: Upload bump artifacts for second pass
-        # NOTE: We upload all Go source files so the second-pass build has everything it needs.
-        # This includes any files modified by `changelog bump` (main.go, VERSION.txt) plus unchanged sources.
-        uses: actions/upload-artifact@v5  # Node.js 24 compatible
-        with:
-          name: version-bump-artifacts
-          path: |
-            *.go
-            go.mod
-            go.sum
-            internal/
-            docgen/
-            tools/
-            changelogs/
-            !dialog.go  # exclude dead code if still present for any reason
-          retention-days: 1
-
-  build-all-architectures:
-    name: Build all architectures (second pass)
-    needs: version-bump
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5  # Node.js 24 compatible
-
-      - name: Download bumped files from first pass
-        uses: actions/download-artifact@v5  # Node.js 24 compatible
-        with:
-          name: version-bump-artifacts
-
-      - name: Build all architectures inside golang:alpine container (second pass)
+      - name: Build all architectures inside golang:alpine container
         # Now that VERSION.txt and main.go have been updated, build the final binaries.
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
             -w /src \
             ${{ env.REGISTRY_IMAGE }} \
-            sh -c 'umask 002 && apk add --no-cache git ca-certificates && CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-linux-amd64   ./... && CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-linux-arm64   ./... && CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-darwin-amd64  ./... && CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-darwin-arm64  ./... && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-windows-amd64.exe ./...'
+            sh -c 'umask 002 && apk add --no-cache git ca-certificates && \
+              CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-linux-amd64   . && \
+              CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-linux-arm64   . && \
+              CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-darwin-amd64  . && \
+              CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-darwin-arm64  . && \
+              CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.Version=$(cat VERSION.txt)" -buildvcs=false -o changelog-windows-amd64.exe .'
 
       - name: Generate SHA256 checksums (ignore if files missing)
         run: |
@@ -196,7 +119,7 @@ jobs:
       - name: Upload build artifacts to workflow
         uses: actions/upload-artifact@v5  # Node.js 24 compatible
         with:
-          name: changelog-${{ needs.version-bump.outputs.next_version }}
+          name: changelog-${{ steps.bump.outputs.next_version }}
           path: |
             changelog-linux-amd64
             changelog-linux-arm64
@@ -208,7 +131,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: build-all-architectures
+    needs: bump-and-build
     runs-on: ubuntu-latest
     permissions:
       contents: write # required to create releases and upload assets
@@ -216,7 +139,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v5  # Node.js 24 compatible
         with:
-          name: changelog-${{ needs.version-bump.outputs.next_version }}
+          name: changelog-${{ needs.bump-and-build.outputs.next_version }}
 
       - name: Read version for notes (same source of truth)
         id: read-version
@@ -226,7 +149,7 @@ jobs:
       - name: Create GitHub Release (draft)
         id: gh_release
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
+          tag="v${{ steps.read-version.outputs.version }}"
           body=$(cat <<EOF
           ## changelog ${{ steps.read-version.outputs.version }}
 
